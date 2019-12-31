@@ -21,41 +21,42 @@ func RxSetup(prod bool) {
 
 // RxObserver type
 type RxObserver struct {
-	Next     chan interface{}
-	Error    chan error
-	Complete chan bool
-	Close    chan bool
-	closed   bool
+	OnNext     chan interface{}
+	OnError    chan error
+	OnComplete chan bool
+	close      chan bool
+	closed     bool
 }
 
 // NewRxObserver init
 func NewRxObserver() *RxObserver {
 	log.Println("RxObserver::NewRxObserver")
 	id := &RxObserver{
-		Next:     make(chan interface{}, 1),
-		Error:    make(chan error, 1),
-		Complete: make(chan bool, 1),
-		Close:    make(chan bool, 1),
-		closed:   false,
+		OnNext:     make(chan interface{}, 1),
+		OnError:    make(chan error, 1),
+		OnComplete: make(chan bool, 1),
+		close:      make(chan bool, 1),
+		closed:     false,
 	}
 
 	go func() {
 		defer func() {
+			// the closed gate is inherently a race condition
 			id.closed = true
-			close(id.Next)
-			close(id.Error)
-			close(id.Complete)
-			close(id.Close)
+			close(id.OnNext)
+			close(id.OnError)
+			close(id.OnComplete)
+			close(id.close)
 		}()
 		for {
 			select {
-			case <-id.Close:
-				if len(id.Next)+len(id.Error)+len(id.Complete) == 0 {
+			case <-id.close:
+				if len(id.OnNext)+len(id.OnError)+len(id.OnComplete) == 0 {
 					return
 				}
 				// retry after 100ms
 				<-time.After(100 * time.Millisecond)
-				id.Close <- true
+				id.close <- true
 				break
 			}
 		}
@@ -73,9 +74,10 @@ func (id *RxObserver) next(event interface{}) {
 
 	select {
 	// prevent write blocks
-	case id.Next <- event:
+	case id.OnNext <- event:
 		break
 	default:
+		log.Println("RxObserver::next no channel", event)
 		break
 	}
 }
@@ -89,31 +91,33 @@ func (id *RxObserver) error(err error) {
 
 	select {
 	// prevent write blocks
-	case id.Error <- err:
+	case id.OnError <- err:
 		break
 	default:
+		log.Println("RxObserver::error no channel")
 		break
 	}
 
-	id.Close <- true
+	id.close <- true
 }
 
 // complete helper
 func (id *RxObserver) complete() {
-	log.Println("RxObserver::onComplete")
+	log.Println("RxObserver::complete")
 	if id.closed {
 		return
 	}
 
 	select {
 	// prevent write blocks
-	case id.Complete <- true:
+	case id.OnComplete <- true:
 		break
 	default:
+		log.Println("RxObserver::complete no channel")
 		break
 	}
 
-	id.Close <- true
+	id.close <- true
 }
 
 // -----------------------------------------------------------------------------
@@ -124,6 +128,8 @@ type RxObservable struct {
 	*RxObserver
 	observers   map[*RxObserver]*RxObserver
 	multicast   bool
+	behavior    bool
+	buffer      []interface{}
 	Subscribe   chan *RxObserver
 	Unsubscribe chan *RxObserver
 	take        func()
@@ -148,7 +154,7 @@ func NewRxObservable() *RxObservable {
 		}()
 		for {
 			select {
-			case event := <-id.Next:
+			case event := <-id.OnNext:
 				id.onNext(event)
 				break
 			case observer := <-id.Subscribe:
@@ -157,10 +163,10 @@ func NewRxObservable() *RxObservable {
 			case observer := <-id.Unsubscribe:
 				id.onUnsubscribe(observer)
 				break
-			case err := <-id.Error:
+			case err := <-id.OnError:
 				id.onError(err)
 				return
-			case <-id.Complete:
+			case <-id.OnComplete:
 				id.onComplete()
 				return
 			}
@@ -198,7 +204,7 @@ func (id *RxObservable) onUnsubscribe(observer *RxObserver) {
 	log.Println("RxObservable::onUnsubscribe")
 	delete(id.observers, observer)
 	observer.complete()
-	observer.Close <- true
+	observer.close <- true
 }
 
 // onError handler
@@ -219,26 +225,56 @@ func (id *RxObservable) onComplete() {
 	}
 }
 
-// Multicast helper
-func (id *RxObservable) Multicast() {
+//
+// Modifiers
+//
+
+// Multicast modifier
+func (id *RxObservable) Multicast() *RxObservable {
 	log.Println("RxObservable::multicast")
 	id.multicast = true
+	return id
+}
+
+// Behavior modifier
+func (id *RxObservable) Behavior(value interface{}) *RxObservable {
+	log.Println("RxObservable::multicast")
+	id.behavior = true
+	id.Replay(1)
+	id.buffer[0] = value
+	return id
+}
+
+// Replay modifier
+func (id *RxObservable) Replay(buffer int) *RxObservable {
+	log.Println("RxObservable::multicast")
+	id.buffer = make([]interface{}, buffer)
+	return id
+}
+
+//
+// Operators
+//
+
+// Next operator
+func (id *RxObservable) Next(event interface{}) {
+	log.Println("RxObservable::Next")
+	id.next(event)
+}
+
+// Pipe operator
+func (id *RxObservable) Pipe(sub *RxObservable) *RxObservable {
+	id.Subscribe <- sub.RxObserver
+	return id
 }
 
 // -----------------------------------------------------------------------------
 // RxSubject
 
-// RxSubject type
-type RxSubject struct {
-	*RxObservable
-}
-
 // NewRxSubject init
-func NewRxSubject() *RxSubject {
+func NewRxSubject() *RxObservable {
 	log.Println("RxObservable::NewRxSubject")
-	id := &RxSubject{
-		RxObservable: NewRxObservable(),
-	}
+	id := NewRxObservable()
 	id.multicast = true
 
 	return id

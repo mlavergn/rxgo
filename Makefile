@@ -23,6 +23,9 @@ build:
 	GOPATH=${GOPATH} go build ./...
 
 demo: build
+	GOPATH=${GOPATH} go run cmd/demo.go
+
+race: build
 	GOPATH=${GOPATH} go run -race cmd/demo.go
 
 test: build

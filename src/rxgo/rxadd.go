@@ -32,7 +32,7 @@ func NewRxInterval(msec int) *RxInterval {
 				id.next(i)
 				i++
 				break
-			case <-id.Close:
+			case <-id.close:
 				return
 			}
 		}
