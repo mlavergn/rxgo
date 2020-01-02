@@ -14,11 +14,9 @@ type RxInterval struct {
 }
 
 // NewRxInterval init
-func NewRxInterval(msec int) *RxInterval {
+func NewRxInterval(msec int) *RxObservable {
 	log.Println("RxInterval::NewRxInterval")
-	id := &RxInterval{
-		RxObservable: NewRxObservable(),
-	}
+	id := NewRxObservable()
 
 	go func() {
 		ticker := time.NewTicker(time.Duration(msec) * time.Millisecond)

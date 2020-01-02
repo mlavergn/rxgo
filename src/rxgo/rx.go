@@ -3,6 +3,7 @@ package rxgo
 import (
 	"io/ioutil"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -32,7 +33,7 @@ type RxObserver struct {
 func NewRxObserver() *RxObserver {
 	log.Println("RxObserver::NewRxObserver")
 	id := &RxObserver{
-		OnNext:     make(chan interface{}, 1),
+		OnNext:     make(chan interface{}, 10),
 		OnError:    make(chan error, 1),
 		OnComplete: make(chan bool, 1),
 		close:      make(chan bool, 1),
@@ -128,10 +129,10 @@ type RxObservable struct {
 	*RxObserver
 	observers   map[*RxObserver]*RxObserver
 	multicast   bool
-	behavior    bool
-	buffer      []interface{}
 	Subscribe   chan *RxObserver
 	Unsubscribe chan *RxObserver
+	buffer      *CircularBuffer
+	filter      func(value interface{}) bool
 	take        func()
 }
 
@@ -144,14 +145,22 @@ func NewRxObservable() *RxObservable {
 		multicast:   false,
 		Subscribe:   make(chan *RxObserver, 1),
 		Unsubscribe: make(chan *RxObserver, 1),
+		buffer:      nil,
+		filter:      nil,
 		take:        nil,
 	}
+
+	// block to allow the reader goroutine to spin up
+	var wg sync.WaitGroup
+	wg.Add(1)
 
 	go func() {
 		defer func() {
 			close(id.Subscribe)
 			close(id.Unsubscribe)
 		}()
+		log.Println("RxObservable::NewRxObservable ready")
+		wg.Done()
 		for {
 			select {
 			case event := <-id.OnNext:
@@ -173,17 +182,32 @@ func NewRxObservable() *RxObservable {
 		}
 	}()
 
+	wg.Wait()
+
 	return id
 }
 
 // onNext handler
 func (id *RxObservable) onNext(event interface{}) {
-	log.Println("RxObservable::onNext")
+	log.Println("RxObservable::onNext", event)
+
+	// pre handlers
+	if id.filter != nil {
+		if !id.filter(event) {
+			return
+		}
+	}
+
+	// buffer for replay / distinct etc
+	if id.buffer != nil {
+		id.buffer.Add(event)
+	}
 
 	for _, observer := range id.observers {
 		observer.next(event)
 	}
 
+	// post handlers
 	if id.take != nil {
 		id.take()
 	}
@@ -196,6 +220,20 @@ func (id *RxObservable) onSubscribe(observer *RxObserver) {
 		id.observers[observer] = observer
 	} else {
 		id.observers = map[*RxObserver]*RxObserver{observer: observer}
+	}
+
+	// replay for the new sub
+	if id.buffer != nil {
+		log.Println("RxObservable::onSubscribe replay")
+		i := -1
+		for {
+			var v interface{}
+			i, v = id.buffer.Next(i)
+			if i == -1 {
+				break
+			}
+			observer.next(v)
+		}
 	}
 }
 
@@ -231,24 +269,23 @@ func (id *RxObservable) onComplete() {
 
 // Multicast modifier
 func (id *RxObservable) Multicast() *RxObservable {
-	log.Println("RxObservable::multicast")
+	log.Println("RxObservable::Multicast")
 	id.multicast = true
 	return id
 }
 
 // Behavior modifier
 func (id *RxObservable) Behavior(value interface{}) *RxObservable {
-	log.Println("RxObservable::multicast")
-	id.behavior = true
-	id.Replay(1)
-	id.buffer[0] = value
+	log.Println("RxObservable::Behavior")
+	id.buffer = NewCircularBuffer(1)
+	id.buffer.Add(value)
 	return id
 }
 
 // Replay modifier
-func (id *RxObservable) Replay(buffer int) *RxObservable {
-	log.Println("RxObservable::multicast")
-	id.buffer = make([]interface{}, buffer)
+func (id *RxObservable) Replay(bufferSize int) *RxObservable {
+	log.Println("RxObservable::Replay")
+	id.buffer = NewCircularBuffer(bufferSize)
 	return id
 }
 
@@ -269,13 +306,33 @@ func (id *RxObservable) Pipe(sub *RxObservable) *RxObservable {
 }
 
 // -----------------------------------------------------------------------------
-// RxSubject
+// RxSubjects
 
 // NewRxSubject init
 func NewRxSubject() *RxObservable {
 	log.Println("RxObservable::NewRxSubject")
 	id := NewRxObservable()
 	id.multicast = true
+
+	return id
+}
+
+// NewRxBehaviorSubject init
+func NewRxBehaviorSubject(value interface{}) *RxObservable {
+	log.Println("RxObservable::NewRxSubject")
+	id := NewRxObservable()
+	id.multicast = true
+	id.Behavior(value)
+
+	return id
+}
+
+// NewRxReplaySubject init
+func NewRxReplaySubject(bufferSize int) *RxObservable {
+	log.Println("RxObservable::NewRxSubject")
+	id := NewRxObservable()
+	id.multicast = true
+	id.Replay(bufferSize)
 
 	return id
 }
