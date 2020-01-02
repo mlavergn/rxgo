@@ -26,15 +26,15 @@ func TestRxInterval(t *testing.T) {
 loop:
 	for {
 		select {
-		case next := <-observer.OnNext:
+		case next := <-observer.Next:
 			t.Log("next", next.(int))
 			nextCnt--
 			break
-		case <-observer.OnError:
+		case <-observer.Error:
 			t.Log("error", errorCnt)
 			errorCnt--
 			break loop
-		case <-observer.OnComplete:
+		case <-observer.Complete:
 			t.Log("complete", completeCnt)
 			completeCnt--
 			break loop
@@ -69,15 +69,15 @@ func TestRxFilter(t *testing.T) {
 loop:
 	for {
 		select {
-		case next := <-observer.OnNext:
+		case next := <-observer.Next:
 			t.Log("next", next.(int))
 			nextCnt--
 			break
-		case <-observer.OnError:
+		case <-observer.Error:
 			t.Log("error", errorCnt)
 			errorCnt--
 			break loop
-		case <-observer.OnComplete:
+		case <-observer.Complete:
 			t.Log("complete", completeCnt)
 			completeCnt--
 			break loop
@@ -103,11 +103,11 @@ func RxIntervalBench(events int) {
 loop:
 	for {
 		select {
-		case <-observer.OnNext:
+		case <-observer.Next:
 			break
-		case <-observer.OnError:
+		case <-observer.Error:
 			break loop
-		case <-observer.OnComplete:
+		case <-observer.Complete:
 			break loop
 		}
 	}

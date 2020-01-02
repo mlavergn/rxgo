@@ -8,7 +8,7 @@ import (
 )
 
 // Version export
-const Version = "0.4.0"
+const Version = "0.5.0"
 
 // RxSetup export
 func RxSetup(prod bool) {
@@ -25,37 +25,37 @@ func RxSetup(prod bool) {
 
 // RxObserver type
 type RxObserver struct {
-	OnNext     chan interface{}
-	OnError    chan error
-	OnComplete chan bool
-	close      chan bool
-	closed     bool
+	Next     chan interface{}
+	Error    chan error
+	Complete chan bool
+	close    chan bool
+	closed   bool
 }
 
 // NewRxObserver init
 func NewRxObserver() *RxObserver {
 	log.Println("RxObserver::NewRxObserver")
 	id := &RxObserver{
-		OnNext:     make(chan interface{}, 10),
-		OnError:    make(chan error, 1),
-		OnComplete: make(chan bool, 1),
-		close:      make(chan bool, 1),
-		closed:     false,
+		Next:     make(chan interface{}, 10),
+		Error:    make(chan error, 1),
+		Complete: make(chan bool, 1),
+		close:    make(chan bool, 1),
+		closed:   false,
 	}
 
 	go func() {
 		defer func() {
 			// the closed gate is inherently a race condition
 			id.closed = true
-			close(id.OnNext)
-			close(id.OnError)
-			close(id.OnComplete)
+			close(id.Next)
+			close(id.Error)
+			close(id.Complete)
 			close(id.close)
 		}()
 		for {
 			select {
 			case <-id.close:
-				if len(id.OnNext)+len(id.OnError)+len(id.OnComplete) == 0 {
+				if len(id.Next)+len(id.Error)+len(id.Complete) == 0 {
 					return
 				}
 				// retry after 100ms
@@ -69,8 +69,8 @@ func NewRxObserver() *RxObserver {
 	return id
 }
 
-// Next export
-func (id *RxObserver) Next(event interface{}) {
+// next helper
+func (id *RxObserver) next(event interface{}) {
 	log.Println("RxObserver::next", event)
 	if id.closed {
 		return
@@ -78,7 +78,7 @@ func (id *RxObserver) Next(event interface{}) {
 
 	select {
 	// prevent write blocks
-	case id.OnNext <- event:
+	case id.Next <- event:
 		break
 	default:
 		log.Println("RxObserver::next no channel", event)
@@ -86,8 +86,8 @@ func (id *RxObserver) Next(event interface{}) {
 	}
 }
 
-// Error export
-func (id *RxObserver) Error(err error) {
+// error helper
+func (id *RxObserver) error(err error) {
 	log.Println("RxObserver::Error")
 	if id.closed {
 		return
@@ -95,7 +95,7 @@ func (id *RxObserver) Error(err error) {
 
 	select {
 	// prevent write blocks
-	case id.OnError <- err:
+	case id.Error <- err:
 		break
 	default:
 		log.Println("RxObserver::error no channel")
@@ -105,8 +105,8 @@ func (id *RxObserver) Error(err error) {
 	id.close <- true
 }
 
-// Complete export
-func (id *RxObserver) Complete() {
+// complete helper
+func (id *RxObserver) complete() {
 	log.Println("RxObserver::Complete")
 	if id.closed {
 		return
@@ -114,7 +114,7 @@ func (id *RxObserver) Complete() {
 
 	select {
 	// prevent write blocks
-	case id.OnComplete <- true:
+	case id.Complete <- true:
 		break
 	default:
 		log.Println("RxObserver::complete no channel")
@@ -166,7 +166,7 @@ func NewRxObservable() *RxObservable {
 		wg.Done()
 		for {
 			select {
-			case event := <-id.OnNext:
+			case event := <-id.Next:
 				id.onNext(event)
 				break
 			case observer := <-id.Subscribe:
@@ -175,10 +175,10 @@ func NewRxObservable() *RxObservable {
 			case observer := <-id.Unsubscribe:
 				id.onUnsubscribe(observer)
 				break
-			case err := <-id.OnError:
+			case err := <-id.Error:
 				id.onError(err)
 				return
-			case <-id.OnComplete:
+			case <-id.Complete:
 				id.onComplete()
 				return
 			}
@@ -207,7 +207,7 @@ func (id *RxObservable) onNext(event interface{}) {
 	}
 
 	for _, observer := range id.observers {
-		observer.Next(event)
+		observer.next(event)
 	}
 
 	// post handlers
@@ -235,7 +235,7 @@ func (id *RxObservable) onSubscribe(observer *RxObserver) {
 			if i == -1 {
 				break
 			}
-			observer.Next(v)
+			observer.next(v)
 		}
 	}
 }
@@ -244,7 +244,7 @@ func (id *RxObservable) onSubscribe(observer *RxObserver) {
 func (id *RxObservable) onUnsubscribe(observer *RxObserver) {
 	log.Println("RxObservable::onUnsubscribe")
 	delete(id.observers, observer)
-	observer.Complete()
+	observer.complete()
 	observer.close <- true
 }
 
@@ -253,7 +253,7 @@ func (id *RxObservable) onError(err error) {
 	log.Println("RxObservable::onError")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
-		observer.Error(err)
+		observer.error(err)
 	}
 }
 
@@ -262,7 +262,7 @@ func (id *RxObservable) onComplete() {
 	log.Println("RxObservable::onComplete")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
-		observer.Complete()
+		observer.complete()
 	}
 }
 
