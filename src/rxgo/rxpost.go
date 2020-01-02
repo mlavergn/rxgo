@@ -12,7 +12,7 @@ func (id *RxObservable) Take(count int) {
 	id.take = func() {
 		counter--
 		if counter <= 0 {
-			id.complete()
+			id.Complete()
 		}
 	}
 }
@@ -23,7 +23,7 @@ func (id *RxObservable) TakeWhile(cond func() bool) {
 
 	id.take = func() {
 		if cond() == false {
-			id.complete()
+			id.Complete()
 		}
 	}
 }
@@ -36,7 +36,7 @@ func (id *RxObservable) TakeUntil(event chan interface{}) {
 		go func() {
 			select {
 			case <-event:
-				id.complete()
+				id.Complete()
 				break
 			}
 		}()

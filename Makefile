@@ -8,7 +8,12 @@
 
 .PHONY: test
 
+VERSION := 0.4.0
+
 GOPATH = "${PWD}"
+
+ver:
+	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rxgo/rx.go
 
 lint:
 	GOPATH=${GOPATH} ~/go/bin/golint .
@@ -36,3 +41,8 @@ bench: build
 
 github:
 	open "https://github.com/mlavergn/rxgo"
+
+release:
+	zip rxgo.zip .
+	hub release create -m "${VERSION} - rxgo" -a rxgo.zip -t master "${VERSION}"
+	open "https://github.com/mlavergn/rxgo/releases"

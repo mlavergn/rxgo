@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// Version export
+const Version = "0.4.0"
+
 // RxSetup export
 func RxSetup(prod bool) {
 	if prod {
@@ -66,8 +69,8 @@ func NewRxObserver() *RxObserver {
 	return id
 }
 
-// next helper
-func (id *RxObserver) next(event interface{}) {
+// Next export
+func (id *RxObserver) Next(event interface{}) {
 	log.Println("RxObserver::next", event)
 	if id.closed {
 		return
@@ -83,9 +86,9 @@ func (id *RxObserver) next(event interface{}) {
 	}
 }
 
-// error helper
-func (id *RxObserver) error(err error) {
-	log.Println("RxObserver::error")
+// Error export
+func (id *RxObserver) Error(err error) {
+	log.Println("RxObserver::Error")
 	if id.closed {
 		return
 	}
@@ -102,9 +105,9 @@ func (id *RxObserver) error(err error) {
 	id.close <- true
 }
 
-// complete helper
-func (id *RxObserver) complete() {
-	log.Println("RxObserver::complete")
+// Complete export
+func (id *RxObserver) Complete() {
+	log.Println("RxObserver::Complete")
 	if id.closed {
 		return
 	}
@@ -204,7 +207,7 @@ func (id *RxObservable) onNext(event interface{}) {
 	}
 
 	for _, observer := range id.observers {
-		observer.next(event)
+		observer.Next(event)
 	}
 
 	// post handlers
@@ -232,7 +235,7 @@ func (id *RxObservable) onSubscribe(observer *RxObserver) {
 			if i == -1 {
 				break
 			}
-			observer.next(v)
+			observer.Next(v)
 		}
 	}
 }
@@ -241,7 +244,7 @@ func (id *RxObservable) onSubscribe(observer *RxObserver) {
 func (id *RxObservable) onUnsubscribe(observer *RxObserver) {
 	log.Println("RxObservable::onUnsubscribe")
 	delete(id.observers, observer)
-	observer.complete()
+	observer.Complete()
 	observer.close <- true
 }
 
@@ -250,7 +253,7 @@ func (id *RxObservable) onError(err error) {
 	log.Println("RxObservable::onError")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
-		observer.error(err)
+		observer.Error(err)
 	}
 }
 
@@ -259,7 +262,7 @@ func (id *RxObservable) onComplete() {
 	log.Println("RxObservable::onComplete")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
-		observer.complete()
+		observer.Complete()
 	}
 }
 
@@ -292,12 +295,6 @@ func (id *RxObservable) Replay(bufferSize int) *RxObservable {
 //
 // Operators
 //
-
-// Next operator
-func (id *RxObservable) Next(event interface{}) {
-	log.Println("RxObservable::Next")
-	id.next(event)
-}
 
 // Pipe operator
 func (id *RxObservable) Pipe(sub *RxObservable) *RxObservable {

@@ -27,7 +27,7 @@ func NewRxInterval(msec int) *RxObservable {
 		for {
 			select {
 			case <-ticker.C:
-				id.next(i)
+				id.Next(i)
 				i++
 				break
 			case <-id.close:
