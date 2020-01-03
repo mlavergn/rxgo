@@ -77,9 +77,12 @@ func (id *Request) Subject(url string, mime string, delimiter byte, parser func(
 	go func(contentLength int64) {
 		defer func() {
 			subject.Complete <- true
-			resp.Body.Close()
 		}()
 
+		// wait for connect
+		<-subject.Connect
+
+	loop:
 		for {
 			select {
 			default:
@@ -91,8 +94,8 @@ func (id *Request) Subject(url string, mime string, delimiter byte, parser func(
 						return
 					}
 					parser(subject, data)
-					subject.Yeild()
-					return
+					subject.Yield(1)
+					break loop
 				} else {
 					chunk, err := reader.ReadBytes(delimiter)
 					if err != nil && err != io.EOF {
@@ -103,6 +106,7 @@ func (id *Request) Subject(url string, mime string, delimiter byte, parser func(
 					chunkLength := int64(len(chunk))
 					if chunkLength != 0 {
 						parser(subject, chunk)
+						subject.Yield(1)
 						if contentLength > 0 {
 							contentLength -= chunkLength
 							if contentLength <= 0 {
@@ -112,7 +116,6 @@ func (id *Request) Subject(url string, mime string, delimiter byte, parser func(
 					}
 					// end of read
 					if err == io.EOF {
-						subject.Yeild()
 						return
 					}
 				}
@@ -123,12 +126,18 @@ func (id *Request) Subject(url string, mime string, delimiter byte, parser func(
 	return subject, nil
 }
 
+// ByteSubject export
+func (id *Request) ByteSubject(url string, contentType string) (*Observable, error) {
+	return id.Subject(url, contentType, 0, func(subject *Observable, raw interface{}) {
+		subject.Next <- raw
+	})
+}
+
 // TextSubject export
 func (id *Request) TextSubject(url string) (*Observable, error) {
 	return id.Subject(url, "text/plain", 0, func(subject *Observable, raw interface{}) {
 		text := ToByteString(raw, "")
 		subject.Next <- text
-		subject.Complete <- true
 	})
 }
 
@@ -149,7 +158,6 @@ func (id *Request) JSONSubject(url string) (*Observable, error) {
 			subject.Error <- err
 		}
 		subject.Next <- result
-		subject.Complete <- true
 	})
 }
 

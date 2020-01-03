@@ -5,30 +5,28 @@ import (
 	"rx"
 )
 
-func demoInterval(observer *rx.Observer) *rx.Observable {
+func demoInterval(subscriber *rx.Subscriber) *rx.Observable {
 	observable := rx.NewInterval(200)
-	observable.Take(10)
-	observable.Subscribe <- observer
+	observable.Subscribe <- subscriber
 	return observable
 }
 
-func demoSubject(observer *rx.Observer) *rx.Observable {
+func demoSubject(subscriber *rx.Subscriber) *rx.Observable {
 	interval := rx.NewInterval(200)
 	observable := rx.NewSubject()
 	interval.Pipe(observable)
-	observable.Take(10)
-	observable.Subscribe <- observer
+	observable.Subscribe <- subscriber
 	observable.Next <- 99
 	return observable
 }
 
-func demoBehavior(observer *rx.Observer) *rx.Observable {
+func demoBehavior(subscriber *rx.Subscriber) *rx.Observable {
 	observable := rx.NewBehaviorSubject(99)
-	observable.Subscribe <- observer
+	observable.Subscribe <- subscriber
 	return observable
 }
 
-func demoReplay(observer *rx.Observer) *rx.Observable {
+func demoReplay(subscriber *rx.Subscriber) *rx.Observable {
 	observable := rx.NewReplaySubject(5)
 	observable.Next <- 11
 	observable.Next <- 22
@@ -39,22 +37,24 @@ func demoReplay(observer *rx.Observer) *rx.Observable {
 	observable.Next <- 77
 	observable.Next <- 88
 	observable.Next <- 99
-	observable.Yeild()
-	observable.Subscribe <- observer
+	// we get here too quickly, so yield
+	observable.Yield(1)
+	observable.Subscribe <- subscriber
 	return observable
 }
 
 func main() {
-	observer := rx.NewObserver()
+	subscriber := rx.NewSubscriber()
+	subscriber.Take(10)
 
-	// observable := demoInterval(observer)
-	// observable := demoSubject(observer)
-	// observable := demoBehavior(observer)
-	observable := demoReplay(observer)
+	// observable := demoInterval(subscriber)
+	// observable := demoSubject(subscriber)
+	// observable := demoBehavior(subscriber)
+	observable := demoReplay(subscriber)
 
 	for {
 		select {
-		case next := <-observer.Next:
+		case next := <-subscriber.Next:
 			v := rx.ToInt(next, -1)
 			log.Println("next", v)
 			if v == 99 || v == -1 {
@@ -62,10 +62,10 @@ func main() {
 				break
 			}
 			break
-		case <-observer.Error:
+		case <-subscriber.Error:
 			log.Println("error")
 			return
-		case <-observer.Complete:
+		case <-subscriber.Complete:
 			log.Println("complete")
 			return
 		}

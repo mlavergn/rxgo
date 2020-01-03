@@ -21,9 +21,9 @@ The result is an API inspired by ReactiveX but which trades conformance for mini
 
 The following are the project goals:
 
-- Implement Subject / Observable / Observer patterns
-- Leverage patterns based on exposed Go channels
-- Tighly control consumption of resources
-- Prefer convention over functions
+- Implement Observable / Subject / Subscriber patterns
+- Model API around on Go channels
+- Tighly limit consumption of resources
+- gochannel friendly
 
 The current API has ReactiveX naming and behavior, but is firmly centered around Go channels.

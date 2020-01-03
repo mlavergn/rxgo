@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.9.0
+VERSION := 0.10.0
 
 GOPATH = "${PWD}"
 
@@ -24,6 +24,14 @@ fmt:
 vet:
 	GOPATH=${GOPATH} go vet rx
 
+# PROFILE = -blockprofile
+# PROFILE = -cpuprofile
+PROFILE = -memprofile
+profile:
+	-rm -f rx.prof rx.test
+	-GOPATH=${GOPATH} go test ${PROFILE}=rx.prof ./src/...
+	GOPATH=${GOPATH} go tool pprof rx.prof
+
 build:
 	GOPATH=${GOPATH} go build ./...
 
@@ -35,6 +43,9 @@ race: build
 
 test: build
 	GOPATH=${GOPATH} go test -v -count=1 ./src/...
+
+testx: build
+	GOPATH=${GOPATH} go test -v -count=10 ./src/... -run TestMerge
 
 bench: build
 	GOPATH=${GOPATH} go test -bench=. -v ./src/...

@@ -17,6 +17,10 @@ func NewInterval(msec int) *Observable {
 		defer func() {
 			ticker.Stop()
 		}()
+
+		// wait for connect
+		<-id.Connect
+
 		i := 0
 		for {
 			select {
@@ -24,7 +28,7 @@ func NewInterval(msec int) *Observable {
 				id.next(i)
 				i++
 				break
-			case <-id.close:
+			case <-id.finalize:
 				return
 			}
 		}

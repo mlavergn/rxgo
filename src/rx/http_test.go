@@ -13,7 +13,7 @@ func TestRequestText(t *testing.T) {
 		return
 	}
 
-	subscriber := NewObserver()
+	subscriber := NewSubscriber()
 	observable.Subscribe <- subscriber
 	select {
 	case event := <-subscriber.Next:
@@ -39,7 +39,7 @@ func TestRequestLine(t *testing.T) {
 		return
 	}
 
-	subscriber := NewObserver()
+	subscriber := NewSubscriber()
 	observable.Subscribe <- subscriber
 	for {
 		select {
@@ -53,6 +53,7 @@ func TestRequestLine(t *testing.T) {
 		case <-subscriber.Complete:
 			if actual != expect {
 				t.Fatalf("Expected %v lines got %v", expect, actual)
+				return
 			}
 			log.Println("complete")
 			return
@@ -68,7 +69,7 @@ func TestRequestJSON(t *testing.T) {
 		return
 	}
 
-	subscriber := NewObserver()
+	subscriber := NewSubscriber()
 	observable.Subscribe <- subscriber
 	select {
 	case event := <-subscriber.Next:
@@ -92,13 +93,14 @@ func TestRequestSSE(t *testing.T) {
 		return
 	}
 
-	subscriber := NewObserver()
+	subscriber := NewSubscriber()
 	observable.Subscribe <- subscriber
 	select {
 	case event := <-subscriber.Next:
 		data := ToByteArrayArray(event, nil)
 		if len(data) < 3 {
 			t.Fatalf("Expected min 3 lines, but received %v", len(data))
+			return
 		}
 		break
 	case err := <-subscriber.Error:
