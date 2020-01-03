@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.8.3
+VERSION := 0.8.4
 
 GOPATH = "${PWD}"
 

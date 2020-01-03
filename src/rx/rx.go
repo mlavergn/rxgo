@@ -15,17 +15,22 @@ import (
 const Version = "0.8.3"
 
 // DEBUG flag for development
-const DEBUG = true
+const DEBUG = false
 
 // stand-in for system logger
 var log *oslog.Logger
 
-func init() {
-	if DEBUG {
+// Config export
+func Config(debug bool) {
+	if debug {
 		log = oslog.New(os.Stderr, "RxGo ", oslog.Ltime|oslog.Lshortfile)
 	} else {
 		log = oslog.New(ioutil.Discard, "", 0)
 	}
+}
+
+func init() {
+	Config(DEBUG)
 }
 
 // -----------------------------------------------------------------------------

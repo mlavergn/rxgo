@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"rx"
 )
 
@@ -47,25 +47,26 @@ func demoReplay(observer *rx.Observer) *rx.Observable {
 func main() {
 	observer := rx.NewObserver()
 
-	// demoInterval(observer)
-	// demoSubject(observer)
-	// demoBehavior(observer)
-	demoReplay(observer)
+	// observable := demoInterval(observer)
+	// observable := demoSubject(observer)
+	// observable := demoBehavior(observer)
+	observable := demoReplay(observer)
 
 	for {
 		select {
 		case next := <-observer.Next:
 			v := rx.ToInt(next, -1)
-			fmt.Println("next", v)
+			log.Println("next", v)
 			if v == 99 || v == -1 {
-				return
+				observable.Complete <- true
+				break
 			}
 			break
 		case <-observer.Error:
-			fmt.Println("error")
+			log.Println("error")
 			return
 		case <-observer.Complete:
-			fmt.Println("complete")
+			log.Println("complete")
 			return
 		}
 	}
