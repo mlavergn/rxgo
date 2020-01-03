@@ -12,7 +12,7 @@ import (
 // Config
 
 // Version export
-const Version = "0.8.3"
+const Version = "0.9.0"
 
 // DEBUG flag for development
 const DEBUG = false
@@ -214,26 +214,32 @@ func (id *Observable) onNext(event interface{}) {
 	log.Println("Observable.onNext")
 
 	// pre handlers
+
+	// Filter
 	if id.filtered != nil {
 		if !id.filtered(event) {
 			return
 		}
 	}
 
+	// Map
 	if id.mapped != nil {
 		event = id.mapped(event)
 	}
 
-	// buffer for replay / distinct etc
+	// Replay / Distinct
 	if id.buffer != nil {
 		id.buffer.Add(event)
 	}
 
+	// multicast the event
 	for _, observer := range id.observers {
 		observer.next(event)
 	}
 
 	// post handlers
+
+	// Take
 	if id.take != nil {
 		id.take()
 	}
@@ -325,9 +331,9 @@ func (id *Observable) Pipe(sub *Observable) *Observable {
 	return id
 }
 
-// Warmup operator
-// sleep just enough to allow the observable to warm
-func (id *Observable) Warmup() *Observable {
+// Yeild operator
+// sleep just enough to allow the observable to yield
+func (id *Observable) Yeild() *Observable {
 	<-time.After(1 * time.Millisecond)
 	return id
 }

@@ -71,7 +71,7 @@ func TestReplay(t *testing.T) {
 	subject.Next <- 4
 	subject.Next <- 5
 	subject.Next <- 6
-	subject.Warmup()
+	subject.Yeild()
 	subject.Subscribe <- observer
 loop:
 	for {

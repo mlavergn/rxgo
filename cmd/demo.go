@@ -39,7 +39,7 @@ func demoReplay(observer *rx.Observer) *rx.Observable {
 	observable.Next <- 77
 	observable.Next <- 88
 	observable.Next <- 99
-	observable.Warmup()
+	observable.Yeild()
 	observable.Subscribe <- observer
 	return observable
 }

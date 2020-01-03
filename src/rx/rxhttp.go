@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -37,7 +38,7 @@ func NewRequest(timeout time.Duration) *Request {
 	httpTransport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
-			Timeout: timeout * time.Second,
+			Timeout: timeout,
 		}).DialContext,
 	}
 	return &Request{
@@ -47,8 +48,8 @@ func NewRequest(timeout time.Duration) *Request {
 	}
 }
 
-// Send export
-func (id *Request) send(url string, mime string, delimiter byte, parser func(*Observable, interface{})) (*Observable, error) {
+// Subject export
+func (id *Request) Subject(url string, mime string, delimiter byte, parser func(*Observable, interface{})) (*Observable, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Println(err)
@@ -64,18 +65,23 @@ func (id *Request) send(url string, mime string, delimiter byte, parser func(*Ob
 		return nil, err
 	}
 
-	subject := NewObservable()
+	// log.Println(resp.Header)
+	contentLength := resp.ContentLength
+	if contentLength == 0 {
+		contentLength = -1
+	}
+
+	subject := NewSubject()
 	reader := bufio.NewReader(resp.Body)
 
-	go func() {
+	go func(contentLength int64) {
 		defer func() {
 			subject.Complete <- true
+			resp.Body.Close()
 		}()
 
 		for {
 			select {
-			case <-subject.Complete:
-				return
 			default:
 				if delimiter == 0 {
 					data, err := ioutil.ReadAll(reader)
@@ -85,34 +91,57 @@ func (id *Request) send(url string, mime string, delimiter byte, parser func(*Ob
 						return
 					}
 					parser(subject, data)
+					subject.Yeild()
+					return
 				} else {
 					chunk, err := reader.ReadBytes(delimiter)
-					if err != nil {
+					if err != nil && err != io.EOF {
 						log.Println(err)
 						subject.Error <- err
 						return
 					}
-					parser(subject, chunk)
+					chunkLength := int64(len(chunk))
+					if chunkLength != 0 {
+						parser(subject, chunk)
+						if contentLength > 0 {
+							contentLength -= chunkLength
+							if contentLength <= 0 {
+								return
+							}
+						}
+					}
+					// end of read
+					if err == io.EOF {
+						subject.Yeild()
+						return
+					}
 				}
 			}
 		}
-	}()
+	}(contentLength)
 
 	return subject, nil
 }
 
 // TextSubject export
 func (id *Request) TextSubject(url string) (*Observable, error) {
-	return id.send(url, "text/plain", 0, func(subject *Observable, raw interface{}) {
+	return id.Subject(url, "text/plain", 0, func(subject *Observable, raw interface{}) {
 		text := ToByteString(raw, "")
 		subject.Next <- text
 		subject.Complete <- true
 	})
 }
 
+// LineSubject export
+func (id *Request) LineSubject(url string) (*Observable, error) {
+	return id.Subject(url, "text/plain", byte('\n'), func(subject *Observable, raw interface{}) {
+		subject.Next <- raw
+	})
+}
+
 // JSONSubject export
 func (id *Request) JSONSubject(url string) (*Observable, error) {
-	return id.send(url, "application/json", 0, func(subject *Observable, raw interface{}) {
+	return id.Subject(url, "application/json", 0, func(subject *Observable, raw interface{}) {
 		data := ToByteArray(raw, nil)
 		var result interface{}
 		err := json.Unmarshal(data, &result)
@@ -130,7 +159,7 @@ func (id *Request) SSESubject(url string) (*Observable, error) {
 	lines := [10][]byte{}
 	i := 0
 
-	return id.send(url, "text/event-stream", byte('\n'), func(subject *Observable, raw interface{}) {
+	return id.Subject(url, "text/event-stream", byte('\n'), func(subject *Observable, raw interface{}) {
 		line := ToByteArray(raw, nil)
 		if len(line) == 1 || i == 10 {
 			// take a reference to lines
