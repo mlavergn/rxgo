@@ -1,4 +1,4 @@
-package rxgo
+package rx
 
 // This is not thread safe *but* used in a single goroutine
 // and avoiding async access so it shouldn't need to worry

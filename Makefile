@@ -8,21 +8,21 @@
 
 .PHONY: test
 
-VERSION := 0.6.1
+VERSION := 0.7.0
 
 GOPATH = "${PWD}"
 
 ver:
-	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rxgo/rx.go
+	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rx/rx.go
 
 lint:
 	GOPATH=${GOPATH} ~/go/bin/golint .
 
 fmt:
-	GOPATH=${GOPATH} go fmt rxgo
+	GOPATH=${GOPATH} go fmt rx
 
 vet:
-	GOPATH=${GOPATH} go vet rxgo
+	GOPATH=${GOPATH} go vet rx
 
 build:
 	GOPATH=${GOPATH} go build ./...

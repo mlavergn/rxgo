@@ -1,4 +1,4 @@
-package rxgo
+package rx
 
 import (
 	"log"

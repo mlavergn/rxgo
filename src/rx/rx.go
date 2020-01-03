@@ -1,4 +1,4 @@
-package rxgo
+package rx
 
 import (
 	"io/ioutil"
@@ -8,7 +8,7 @@ import (
 )
 
 // Version export
-const Version = "0.6.0"
+const Version = "0.7.0"
 
 // RxSetup export
 func RxSetup(prod bool) {
