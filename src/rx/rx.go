@@ -8,7 +8,7 @@ import (
 )
 
 // Version export
-const Version = "0.8.1"
+const Version = "0.8.2"
 
 // DEBUG flag for auto-config
 const DEBUG = false
@@ -39,10 +39,6 @@ type Observer struct {
 
 // NewObserver init
 func NewObserver() *Observer {
-	// NewObserver is guaranteed to be called first so
-	// provides the best hook point for the Config call
-	configOnce.Do(func() { Config(DEBUG) })
-
 	log.Println("rx.Observer.NewObserver")
 	id := &Observer{
 		Next:     make(chan interface{}, 10),
@@ -155,6 +151,10 @@ type Observable struct {
 
 // NewObservable init
 func NewObservable() *Observable {
+	// NewObservable will likely be called first and
+	// provides the best hook for an auto Config call
+	configOnce.Do(func() { Config(DEBUG) })
+
 	log.Println("rx.Observable.NewObservable")
 	id := &Observable{
 		Observer:    NewObserver(),
