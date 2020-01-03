@@ -1,12 +1,8 @@
 package rx
 
-import (
-	"log"
-)
-
 // Take export
 func (id *Observable) Take(count int) {
-	log.Println("rx.Observable.Take")
+	log.Println("Observable.Take")
 
 	counter := count
 	id.take = func() {
@@ -19,7 +15,7 @@ func (id *Observable) Take(count int) {
 
 // TakeWhile export
 func (id *Observable) TakeWhile(cond func() bool) {
-	log.Println("rx.Observable.TakeWhile")
+	log.Println("Observable.TakeWhile")
 
 	id.take = func() {
 		if cond() == false {
@@ -30,7 +26,7 @@ func (id *Observable) TakeWhile(cond func() bool) {
 
 // TakeUntil export
 func (id *Observable) TakeUntil(event chan interface{}) {
-	log.Println("rx.Observable.TakeUntil")
+	log.Println("Observable.TakeUntil")
 
 	id.take = func() {
 		go func() {

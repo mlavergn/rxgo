@@ -2,28 +2,31 @@ package rx
 
 import (
 	"io/ioutil"
-	"log"
+	oslog "log"
+	"os"
 	"sync"
 	"time"
 )
 
+// -----------------------------------------------------------------------------
+// Config
+
 // Version export
-const Version = "0.8.2"
+const Version = "0.8.3"
 
-// DEBUG flag for auto-config
-const DEBUG = false
+// DEBUG flag for development
+const DEBUG = true
 
-// Config export
-func Config(debug bool) {
-	if debug {
-		log.SetFlags(log.Ltime | log.Lshortfile)
+// stand-in for system logger
+var log *oslog.Logger
+
+func init() {
+	if DEBUG {
+		log = oslog.New(os.Stderr, "RxGo ", oslog.Ltime|oslog.Lshortfile)
 	} else {
-		log.SetFlags(0)
-		log.SetOutput(ioutil.Discard)
+		log = oslog.New(ioutil.Discard, "", 0)
 	}
 }
-
-var configOnce sync.Once
 
 // -----------------------------------------------------------------------------
 // Observer
@@ -39,7 +42,7 @@ type Observer struct {
 
 // NewObserver init
 func NewObserver() *Observer {
-	log.Println("rx.Observer.NewObserver")
+	log.Println("Observer.NewObserver")
 	id := &Observer{
 		Next:     make(chan interface{}, 10),
 		Error:    make(chan error, 1),
@@ -76,7 +79,7 @@ func NewObserver() *Observer {
 
 // next helper
 func (id *Observer) next(event interface{}) *Observer {
-	log.Println("rx.Observer.next")
+	log.Println("Observer.next")
 	if id.closed {
 		return id
 	}
@@ -86,7 +89,7 @@ func (id *Observer) next(event interface{}) *Observer {
 	case id.Next <- event:
 		break
 	default:
-		log.Println("rx.Observer.next no channel")
+		log.Println("Observer.next no channel")
 		break
 	}
 
@@ -95,7 +98,7 @@ func (id *Observer) next(event interface{}) *Observer {
 
 // error helper
 func (id *Observer) error(err error) *Observer {
-	log.Println("rx.Observer.Error")
+	log.Println("Observer.Error")
 	if id.closed {
 		return id
 	}
@@ -105,7 +108,7 @@ func (id *Observer) error(err error) *Observer {
 	case id.Error <- err:
 		break
 	default:
-		log.Println("rx.Observer.error no channel")
+		log.Println("Observer.error no channel")
 		break
 	}
 
@@ -115,7 +118,7 @@ func (id *Observer) error(err error) *Observer {
 
 // complete helper
 func (id *Observer) complete() *Observer {
-	log.Println("rx.Observer.Complete")
+	log.Println("Observer.Complete")
 	if id.closed {
 		return id
 	}
@@ -125,7 +128,7 @@ func (id *Observer) complete() *Observer {
 	case id.Complete <- true:
 		break
 	default:
-		log.Println("rx.Observer.complete no channel")
+		log.Println("Observer.complete no channel")
 		break
 	}
 
@@ -151,11 +154,7 @@ type Observable struct {
 
 // NewObservable init
 func NewObservable() *Observable {
-	// NewObservable will likely be called first and
-	// provides the best hook for an auto Config call
-	configOnce.Do(func() { Config(DEBUG) })
-
-	log.Println("rx.Observable.NewObservable")
+	log.Println("Observable.NewObservable")
 	id := &Observable{
 		Observer:    NewObserver(),
 		observers:   map[*Observer]*Observer{},
@@ -177,7 +176,7 @@ func NewObservable() *Observable {
 			close(id.Subscribe)
 			close(id.Unsubscribe)
 		}()
-		log.Println("rx.Observable.NewObservable ready")
+		log.Println("Observable.NewObservable ready")
 		wg.Done()
 		for {
 			select {
@@ -207,7 +206,7 @@ func NewObservable() *Observable {
 
 // onNext handler
 func (id *Observable) onNext(event interface{}) {
-	log.Println("rx.Observable.onNext")
+	log.Println("Observable.onNext")
 
 	// pre handlers
 	if id.filtered != nil {
@@ -237,7 +236,7 @@ func (id *Observable) onNext(event interface{}) {
 
 // onSubscribe handler
 func (id *Observable) onSubscribe(observer *Observer) {
-	log.Println("rx.Observable.onSubscribe")
+	log.Println("Observable.onSubscribe")
 	if id.multicast {
 		id.observers[observer] = observer
 	} else {
@@ -246,7 +245,7 @@ func (id *Observable) onSubscribe(observer *Observer) {
 
 	// replay for the new sub
 	if id.buffer != nil {
-		log.Println("rx.Observable.onSubscribe replay")
+		log.Println("Observable.onSubscribe replay")
 		i := -1
 		for {
 			var v interface{}
@@ -261,7 +260,7 @@ func (id *Observable) onSubscribe(observer *Observer) {
 
 // onUnsubscribe handler
 func (id *Observable) onUnsubscribe(observer *Observer) {
-	log.Println("rx.Observable.onUnsubscribe")
+	log.Println("Observable.onUnsubscribe")
 	delete(id.observers, observer)
 	observer.complete()
 	observer.close <- true
@@ -269,7 +268,7 @@ func (id *Observable) onUnsubscribe(observer *Observer) {
 
 // onError handler
 func (id *Observable) onError(err error) {
-	log.Println("rx.Observable.onError")
+	log.Println("Observable.onError")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
 		observer.error(err)
@@ -278,7 +277,7 @@ func (id *Observable) onError(err error) {
 
 // onComplete handler
 func (id *Observable) onComplete() {
-	log.Println("rx.Observable.onComplete")
+	log.Println("Observable.onComplete")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
 		observer.complete()
@@ -291,14 +290,14 @@ func (id *Observable) onComplete() {
 
 // Multicast modifier
 func (id *Observable) Multicast() *Observable {
-	log.Println("rx.Observable.Multicast")
+	log.Println("Observable.Multicast")
 	id.multicast = true
 	return id
 }
 
 // Behavior modifier
 func (id *Observable) Behavior(value interface{}) *Observable {
-	log.Println("rx.Observable.Behavior")
+	log.Println("Observable.Behavior")
 	id.buffer = NewCircularBuffer(1)
 	id.buffer.Add(value)
 	return id
@@ -306,7 +305,7 @@ func (id *Observable) Behavior(value interface{}) *Observable {
 
 // Replay modifier
 func (id *Observable) Replay(bufferSize int) *Observable {
-	log.Println("rx.Observable.Replay")
+	log.Println("Observable.Replay")
 	id.buffer = NewCircularBuffer(bufferSize)
 	return id
 }
@@ -333,7 +332,7 @@ func (id *Observable) Warmup() *Observable {
 
 // NewSubject init
 func NewSubject() *Observable {
-	log.Println("rx.Observable.NewSubject")
+	log.Println("Observable.NewSubject")
 	id := NewObservable()
 	id.multicast = true
 
@@ -342,7 +341,7 @@ func NewSubject() *Observable {
 
 // NewBehaviorSubject init
 func NewBehaviorSubject(value interface{}) *Observable {
-	log.Println("rx.Observable.NewSubject")
+	log.Println("Observable.NewSubject")
 	id := NewObservable()
 	id.multicast = true
 	id.Behavior(value)
@@ -352,7 +351,7 @@ func NewBehaviorSubject(value interface{}) *Observable {
 
 // NewReplaySubject init
 func NewReplaySubject(bufferSize int) *Observable {
-	log.Println("rx.Observable.NewSubject")
+	log.Println("Observable.NewSubject")
 	id := NewObservable()
 	id.multicast = true
 	id.Replay(bufferSize)

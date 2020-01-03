@@ -1,7 +1,6 @@
 package rx
 
 import (
-	"log"
 	"os"
 	"testing"
 )

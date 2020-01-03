@@ -1,9 +1,5 @@
 package rx
 
-import (
-	"log"
-)
-
 // ToInt export
 func ToInt(value interface{}, failure int) (ret int) {
 	defer func() {

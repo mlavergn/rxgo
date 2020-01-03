@@ -1,7 +1,6 @@
 package rx
 
 import (
-	"log"
 	"time"
 )
 
@@ -10,7 +9,7 @@ import (
 
 // NewInterval init
 func NewInterval(msec int) *Observable {
-	log.Println("rx.Interval.NewInterval")
+	log.Println("Interval.NewInterval")
 	id := NewObservable()
 
 	go func() {
