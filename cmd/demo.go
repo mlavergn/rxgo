@@ -45,8 +45,6 @@ func demoReplay(observer *rx.Observer) *rx.Observable {
 }
 
 func main() {
-	rx.Setup(false)
-
 	observer := rx.NewObserver()
 
 	// demoInterval(observer)

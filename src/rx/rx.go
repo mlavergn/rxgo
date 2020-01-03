@@ -8,17 +8,22 @@ import (
 )
 
 // Version export
-const Version = "0.8.0"
+const Version = "0.8.1"
 
-// Setup export
-func Setup(prod bool) {
-	if prod {
+// DEBUG flag for auto-config
+const DEBUG = false
+
+// Config export
+func Config(debug bool) {
+	if debug {
+		log.SetFlags(log.Ltime | log.Lshortfile)
+	} else {
 		log.SetFlags(0)
 		log.SetOutput(ioutil.Discard)
-	} else {
-		log.SetFlags(log.Ltime | log.Lshortfile)
 	}
 }
+
+var configOnce sync.Once
 
 // -----------------------------------------------------------------------------
 // Observer
@@ -34,6 +39,10 @@ type Observer struct {
 
 // NewObserver init
 func NewObserver() *Observer {
+	// NewObserver is guaranteed to be called first so
+	// provides the best hook point for the Config call
+	configOnce.Do(func() { Config(DEBUG) })
+
 	log.Println("rx.Observer.NewObserver")
 	id := &Observer{
 		Next:     make(chan interface{}, 10),

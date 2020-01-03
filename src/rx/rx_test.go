@@ -8,7 +8,7 @@ import (
 
 func TestMain(m *testing.M) {
 	log.Println("Testing RxGo", Version)
-	Setup(true)
+	// setup
 	code := m.Run()
 	// teardown
 	os.Exit(code)
