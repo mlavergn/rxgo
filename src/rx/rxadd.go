@@ -6,12 +6,12 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// RxInterval
+// Interval
 
-// NewRxInterval init
-func NewRxInterval(msec int) *RxObservable {
-	log.Println("RxInterval::NewRxInterval")
-	id := NewRxObservable()
+// NewInterval init
+func NewInterval(msec int) *Observable {
+	log.Println("rx.Interval.NewInterval")
+	id := NewObservable()
 
 	go func() {
 		ticker := time.NewTicker(time.Duration(msec) * time.Millisecond)

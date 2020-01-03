@@ -12,13 +12,13 @@ import (
 	"time"
 )
 
-// RxHTTP type
-type RxHTTP struct {
+// Request type
+type Request struct {
 	client *http.Client
 }
 
-// NewRxHTTP init
-func NewRxHTTP(timeout time.Duration) *RxHTTP {
+// NewRequest init
+func NewRequest(timeout time.Duration) *Request {
 	rootCAs, _ := x509.SystemCertPool()
 	if rootCAs == nil {
 		rootCAs = x509.NewCertPool()
@@ -41,7 +41,7 @@ func NewRxHTTP(timeout time.Duration) *RxHTTP {
 			Timeout: timeout * time.Second,
 		}).DialContext,
 	}
-	return &RxHTTP{
+	return &Request{
 		client: &http.Client{
 			Transport: httpTransport,
 		},
@@ -49,7 +49,7 @@ func NewRxHTTP(timeout time.Duration) *RxHTTP {
 }
 
 // Send export
-func (id *RxHTTP) send(url string, mime string, delimiter byte, parser func(*RxObservable, interface{})) (*RxObservable, error) {
+func (id *Request) send(url string, mime string, delimiter byte, parser func(*Observable, interface{})) (*Observable, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Println(err)
@@ -65,7 +65,7 @@ func (id *RxHTTP) send(url string, mime string, delimiter byte, parser func(*RxO
 		return nil, err
 	}
 
-	subject := NewRxObservable()
+	subject := NewObservable()
 	reader := bufio.NewReader(resp.Body)
 
 	go func() {
@@ -102,18 +102,18 @@ func (id *RxHTTP) send(url string, mime string, delimiter byte, parser func(*RxO
 	return subject, nil
 }
 
-// Text export
-func (id *RxHTTP) Text(url string) (*RxObservable, error) {
-	return id.send(url, "text/plain", 0, func(subject *RxObservable, raw interface{}) {
+// TextSubject export
+func (id *Request) TextSubject(url string) (*Observable, error) {
+	return id.send(url, "text/plain", 0, func(subject *Observable, raw interface{}) {
 		text := ToByteString(raw, "")
 		subject.Next <- text
 		subject.Complete <- true
 	})
 }
 
-// JSON export
-func (id *RxHTTP) JSON(url string) (*RxObservable, error) {
-	return id.send(url, "application/json", 0, func(subject *RxObservable, raw interface{}) {
+// JSONSubject export
+func (id *Request) JSONSubject(url string) (*Observable, error) {
+	return id.send(url, "application/json", 0, func(subject *Observable, raw interface{}) {
 		data := ToByteArray(raw, nil)
 		var result interface{}
 		err := json.Unmarshal(data, &result)
@@ -125,13 +125,13 @@ func (id *RxHTTP) JSON(url string) (*RxObservable, error) {
 	})
 }
 
-// SSE export
-func (id *RxHTTP) SSE(url string) (*RxObservable, error) {
+// SSESubject export
+func (id *Request) SSESubject(url string) (*Observable, error) {
 	// assumption, events will never exceed 10 lines
 	lines := [10][]byte{}
 	i := 0
 
-	return id.send(url, "text/event-stream", byte('\n'), func(subject *RxObservable, raw interface{}) {
+	return id.send(url, "text/event-stream", byte('\n'), func(subject *Observable, raw interface{}) {
 		line := ToByteArray(raw, nil)
 		if len(line) == 1 || i == 10 {
 			// take a reference to lines

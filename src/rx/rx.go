@@ -8,10 +8,10 @@ import (
 )
 
 // Version export
-const Version = "0.7.0"
+const Version = "0.8.0"
 
-// RxSetup export
-func RxSetup(prod bool) {
+// Setup export
+func Setup(prod bool) {
 	if prod {
 		log.SetFlags(0)
 		log.SetOutput(ioutil.Discard)
@@ -21,10 +21,10 @@ func RxSetup(prod bool) {
 }
 
 // -----------------------------------------------------------------------------
-// RxObserver
+// Observer
 
-// RxObserver type
-type RxObserver struct {
+// Observer type
+type Observer struct {
 	Next     chan interface{}
 	Error    chan error
 	Complete chan bool
@@ -32,10 +32,10 @@ type RxObserver struct {
 	closed   bool
 }
 
-// NewRxObserver init
-func NewRxObserver() *RxObserver {
-	log.Println("RxObserver::NewRxObserver")
-	id := &RxObserver{
+// NewObserver init
+func NewObserver() *Observer {
+	log.Println("rx.Observer.NewObserver")
+	id := &Observer{
 		Next:     make(chan interface{}, 10),
 		Error:    make(chan error, 1),
 		Complete: make(chan bool, 1),
@@ -70,8 +70,8 @@ func NewRxObserver() *RxObserver {
 }
 
 // next helper
-func (id *RxObserver) next(event interface{}) *RxObserver {
-	log.Println("RxObserver::next")
+func (id *Observer) next(event interface{}) *Observer {
+	log.Println("rx.Observer.next")
 	if id.closed {
 		return id
 	}
@@ -81,7 +81,7 @@ func (id *RxObserver) next(event interface{}) *RxObserver {
 	case id.Next <- event:
 		break
 	default:
-		log.Println("RxObserver::next no channel")
+		log.Println("rx.Observer.next no channel")
 		break
 	}
 
@@ -89,8 +89,8 @@ func (id *RxObserver) next(event interface{}) *RxObserver {
 }
 
 // error helper
-func (id *RxObserver) error(err error) *RxObserver {
-	log.Println("RxObserver::Error")
+func (id *Observer) error(err error) *Observer {
+	log.Println("rx.Observer.Error")
 	if id.closed {
 		return id
 	}
@@ -100,7 +100,7 @@ func (id *RxObserver) error(err error) *RxObserver {
 	case id.Error <- err:
 		break
 	default:
-		log.Println("RxObserver::error no channel")
+		log.Println("rx.Observer.error no channel")
 		break
 	}
 
@@ -109,8 +109,8 @@ func (id *RxObserver) error(err error) *RxObserver {
 }
 
 // complete helper
-func (id *RxObserver) complete() *RxObserver {
-	log.Println("RxObserver::Complete")
+func (id *Observer) complete() *Observer {
+	log.Println("rx.Observer.Complete")
 	if id.closed {
 		return id
 	}
@@ -120,7 +120,7 @@ func (id *RxObserver) complete() *RxObserver {
 	case id.Complete <- true:
 		break
 	default:
-		log.Println("RxObserver::complete no channel")
+		log.Println("rx.Observer.complete no channel")
 		break
 	}
 
@@ -131,29 +131,31 @@ func (id *RxObserver) complete() *RxObserver {
 // -----------------------------------------------------------------------------
 // RxObservable
 
-// RxObservable type
-type RxObservable struct {
-	*RxObserver
-	observers   map[*RxObserver]*RxObserver
+// Observable type
+type Observable struct {
+	*Observer
+	observers   map[*Observer]*Observer
 	multicast   bool
-	Subscribe   chan *RxObserver
-	Unsubscribe chan *RxObserver
+	Subscribe   chan *Observer
+	Unsubscribe chan *Observer
 	buffer      *CircularBuffer
-	filter      func(value interface{}) bool
+	filtered    func(value interface{}) bool
+	mapped      func(value interface{}) interface{}
 	take        func()
 }
 
-// NewRxObservable init
-func NewRxObservable() *RxObservable {
-	log.Println("RxObservable::NewRxObservable")
-	id := &RxObservable{
-		RxObserver:  NewRxObserver(),
-		observers:   map[*RxObserver]*RxObserver{},
+// NewObservable init
+func NewObservable() *Observable {
+	log.Println("rx.Observable.NewObservable")
+	id := &Observable{
+		Observer:    NewObserver(),
+		observers:   map[*Observer]*Observer{},
 		multicast:   false,
-		Subscribe:   make(chan *RxObserver, 1),
-		Unsubscribe: make(chan *RxObserver, 1),
+		Subscribe:   make(chan *Observer, 1),
+		Unsubscribe: make(chan *Observer, 1),
 		buffer:      nil,
-		filter:      nil,
+		filtered:    nil,
+		mapped:      nil,
 		take:        nil,
 	}
 
@@ -166,7 +168,7 @@ func NewRxObservable() *RxObservable {
 			close(id.Subscribe)
 			close(id.Unsubscribe)
 		}()
-		log.Println("RxObservable::NewRxObservable ready")
+		log.Println("rx.Observable.NewObservable ready")
 		wg.Done()
 		for {
 			select {
@@ -195,14 +197,18 @@ func NewRxObservable() *RxObservable {
 }
 
 // onNext handler
-func (id *RxObservable) onNext(event interface{}) {
-	log.Println("RxObservable::onNext")
+func (id *Observable) onNext(event interface{}) {
+	log.Println("rx.Observable.onNext")
 
 	// pre handlers
-	if id.filter != nil {
-		if !id.filter(event) {
+	if id.filtered != nil {
+		if !id.filtered(event) {
 			return
 		}
+	}
+
+	if id.mapped != nil {
+		event = id.mapped(event)
 	}
 
 	// buffer for replay / distinct etc
@@ -221,17 +227,17 @@ func (id *RxObservable) onNext(event interface{}) {
 }
 
 // onSubscribe handler
-func (id *RxObservable) onSubscribe(observer *RxObserver) {
-	log.Println("RxObservable::onSubscribe")
+func (id *Observable) onSubscribe(observer *Observer) {
+	log.Println("rx.Observable.onSubscribe")
 	if id.multicast {
 		id.observers[observer] = observer
 	} else {
-		id.observers = map[*RxObserver]*RxObserver{observer: observer}
+		id.observers = map[*Observer]*Observer{observer: observer}
 	}
 
 	// replay for the new sub
 	if id.buffer != nil {
-		log.Println("RxObservable::onSubscribe replay")
+		log.Println("rx.Observable.onSubscribe replay")
 		i := -1
 		for {
 			var v interface{}
@@ -245,16 +251,16 @@ func (id *RxObservable) onSubscribe(observer *RxObserver) {
 }
 
 // onUnsubscribe handler
-func (id *RxObservable) onUnsubscribe(observer *RxObserver) {
-	log.Println("RxObservable::onUnsubscribe")
+func (id *Observable) onUnsubscribe(observer *Observer) {
+	log.Println("rx.Observable.onUnsubscribe")
 	delete(id.observers, observer)
 	observer.complete()
 	observer.close <- true
 }
 
 // onError handler
-func (id *RxObservable) onError(err error) {
-	log.Println("RxObservable::onError")
+func (id *Observable) onError(err error) {
+	log.Println("rx.Observable.onError")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
 		observer.error(err)
@@ -262,8 +268,8 @@ func (id *RxObservable) onError(err error) {
 }
 
 // onComplete handler
-func (id *RxObservable) onComplete() {
-	log.Println("RxObservable::onComplete")
+func (id *Observable) onComplete() {
+	log.Println("rx.Observable.onComplete")
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
 		observer.complete()
@@ -275,23 +281,23 @@ func (id *RxObservable) onComplete() {
 //
 
 // Multicast modifier
-func (id *RxObservable) Multicast() *RxObservable {
-	log.Println("RxObservable::Multicast")
+func (id *Observable) Multicast() *Observable {
+	log.Println("rx.Observable.Multicast")
 	id.multicast = true
 	return id
 }
 
 // Behavior modifier
-func (id *RxObservable) Behavior(value interface{}) *RxObservable {
-	log.Println("RxObservable::Behavior")
+func (id *Observable) Behavior(value interface{}) *Observable {
+	log.Println("rx.Observable.Behavior")
 	id.buffer = NewCircularBuffer(1)
 	id.buffer.Add(value)
 	return id
 }
 
 // Replay modifier
-func (id *RxObservable) Replay(bufferSize int) *RxObservable {
-	log.Println("RxObservable::Replay")
+func (id *Observable) Replay(bufferSize int) *Observable {
+	log.Println("rx.Observable.Replay")
 	id.buffer = NewCircularBuffer(bufferSize)
 	return id
 }
@@ -301,44 +307,44 @@ func (id *RxObservable) Replay(bufferSize int) *RxObservable {
 //
 
 // Pipe operator
-func (id *RxObservable) Pipe(sub *RxObservable) *RxObservable {
-	id.Subscribe <- sub.RxObserver
+func (id *Observable) Pipe(sub *Observable) *Observable {
+	id.Subscribe <- sub.Observer
 	return id
 }
 
 // Warmup operator
 // sleep just enough to allow the observable to warm
-func (id *RxObservable) Warmup() *RxObservable {
+func (id *Observable) Warmup() *Observable {
 	<-time.After(1 * time.Millisecond)
 	return id
 }
 
 // -----------------------------------------------------------------------------
-// RxSubjects
+// Subjects
 
-// NewRxSubject init
-func NewRxSubject() *RxObservable {
-	log.Println("RxObservable::NewRxSubject")
-	id := NewRxObservable()
+// NewSubject init
+func NewSubject() *Observable {
+	log.Println("rx.Observable.NewSubject")
+	id := NewObservable()
 	id.multicast = true
 
 	return id
 }
 
-// NewRxBehaviorSubject init
-func NewRxBehaviorSubject(value interface{}) *RxObservable {
-	log.Println("RxObservable::NewRxSubject")
-	id := NewRxObservable()
+// NewBehaviorSubject init
+func NewBehaviorSubject(value interface{}) *Observable {
+	log.Println("rx.Observable.NewSubject")
+	id := NewObservable()
 	id.multicast = true
 	id.Behavior(value)
 
 	return id
 }
 
-// NewRxReplaySubject init
-func NewRxReplaySubject(bufferSize int) *RxObservable {
-	log.Println("RxObservable::NewRxSubject")
-	id := NewRxObservable()
+// NewReplaySubject init
+func NewReplaySubject(bufferSize int) *Observable {
+	log.Println("rx.Observable.NewSubject")
+	id := NewObservable()
 	id.multicast = true
 	id.Replay(bufferSize)
 

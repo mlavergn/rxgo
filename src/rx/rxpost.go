@@ -5,8 +5,8 @@ import (
 )
 
 // Take export
-func (id *RxObservable) Take(count int) {
-	log.Println("RxObservable::Take")
+func (id *Observable) Take(count int) {
+	log.Println("rx.Observable.Take")
 
 	counter := count
 	id.take = func() {
@@ -18,8 +18,8 @@ func (id *RxObservable) Take(count int) {
 }
 
 // TakeWhile export
-func (id *RxObservable) TakeWhile(cond func() bool) {
-	log.Println("RxObservable::TakeWhile")
+func (id *Observable) TakeWhile(cond func() bool) {
+	log.Println("rx.Observable.TakeWhile")
 
 	id.take = func() {
 		if cond() == false {
@@ -29,8 +29,8 @@ func (id *RxObservable) TakeWhile(cond func() bool) {
 }
 
 // TakeUntil export
-func (id *RxObservable) TakeUntil(event chan interface{}) {
-	log.Println("RxObservable::TakeUntil")
+func (id *Observable) TakeUntil(event chan interface{}) {
+	log.Println("rx.Observable.TakeUntil")
 
 	id.take = func() {
 		go func() {

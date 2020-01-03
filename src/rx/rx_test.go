@@ -8,21 +8,21 @@ import (
 
 func TestMain(m *testing.M) {
 	log.Println("Testing RxGo", Version)
-	RxSetup(true)
+	Setup(true)
 	code := m.Run()
 	// teardown
 	os.Exit(code)
 }
 
-func TestRxInterval(t *testing.T) {
+func TestInterval(t *testing.T) {
 	events := 10
 
 	nextCnt := events
 	errorCnt := 0
 	completeCnt := 1
 
-	observer := NewRxObserver()
-	interval := NewRxInterval(50)
+	observer := NewObserver()
+	interval := NewInterval(50)
 	interval.Take(events)
 	interval.Subscribe <- observer
 loop:
@@ -57,15 +57,15 @@ loop:
 	}
 }
 
-func TestRxReplay(t *testing.T) {
+func TestReplay(t *testing.T) {
 	events := 3
 
 	nextCnt := events
 	errorCnt := 0
 	completeCnt := 1
 
-	observer := NewRxObserver()
-	subject := NewRxReplaySubject(events)
+	observer := NewObserver()
+	subject := NewReplaySubject(events)
 	subject.Next <- 1
 	subject.Next <- 2
 	subject.Next <- 3
@@ -109,15 +109,15 @@ loop:
 	}
 }
 
-func TestRxFilter(t *testing.T) {
+func TestFilter(t *testing.T) {
 	events := 5
 
 	nextCnt := events
 	errorCnt := 0
 	completeCnt := 1
 
-	observer := NewRxObserver()
-	interval := NewRxInterval(10)
+	observer := NewObserver()
+	interval := NewInterval(10)
 	interval.Take(events)
 	interval.Filter(func(value interface{}) bool {
 		return (ToInt(value, -1)%2 == 0)
@@ -155,9 +155,56 @@ loop:
 	}
 }
 
+func TestMap(t *testing.T) {
+	events := 5
+
+	nextCnt := events
+	errorCnt := 0
+	completeCnt := 1
+
+	observer := NewObserver()
+	interval := NewInterval(5)
+	interval.Take(events)
+	interval.Map(func(value interface{}) interface{} {
+		return ToInt(value, 0) * 10
+	})
+	interval.Subscribe <- observer
+loop:
+	for {
+		select {
+		case next := <-observer.Next:
+			value := ToInt(next, 0)
+			if next == nil || value%10 != 0 {
+				t.Fatalf("Unexpected next value %v", next)
+			}
+			// t.Log("next", next.(int))
+			nextCnt--
+			break
+		case <-observer.Error:
+			// t.Log("error", errorCnt)
+			errorCnt--
+			break loop
+		case <-observer.Complete:
+			// t.Log("complete", completeCnt)
+			completeCnt--
+			break loop
+		}
+	}
+
+	if nextCnt != 0 {
+		t.Fatalf("Expected next count of %v but got %v", 0, nextCnt)
+	}
+	if errorCnt != 0 {
+		t.Fatalf("Expected error count of %v but got %v", 0, errorCnt)
+	}
+	if completeCnt != 0 {
+		t.Fatalf("Expected complete count of %v but got %v", 0, completeCnt)
+	}
+}
+
 func RxIntervalBench(events int) {
-	observer := NewRxObserver()
-	interval := NewRxInterval(50)
+	observer := NewObserver()
+	interval := NewInterval(50)
 	interval.Take(events)
 	interval.Subscribe <- observer
 loop:

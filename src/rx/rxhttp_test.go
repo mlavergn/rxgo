@@ -5,77 +5,77 @@ import (
 	"testing"
 )
 
-func TestRxHTTPText(t *testing.T) {
-	rxhttp := NewRxHTTP(0)
-	observable, err := rxhttp.Text("http://iot.reqly.com")
+func TestRequestText(t *testing.T) {
+	rxhttp := NewRequest(0)
+	observable, err := rxhttp.TextSubject("http://iot.reqly.com")
 
 	if err != nil {
-		t.Fatalf("TestRxHTTPText init error %v", err)
+		t.Fatalf("rx.TestHTTPText init error %v", err)
 		return
 	}
 
-	subscriber := NewRxObserver()
+	subscriber := NewObserver()
 	observable.Subscribe <- subscriber
 	select {
 	case event := <-subscriber.Next:
 		log.Println(event)
 		break
 	case err := <-subscriber.Error:
-		t.Fatalf("TestRxHTTPText error %v", err)
+		t.Fatalf("rx.TestHTTPText error %v", err)
 		return
 	case <-subscriber.Complete:
-		log.Println("TestRxHTTPText complete")
+		log.Println("rx.TestHTTPText complete")
 		return
 	}
 }
 
-func TestRxHTTPJSON(t *testing.T) {
-	rxhttp := NewRxHTTP(0)
-	observable, err := rxhttp.JSON("http://iot.reqly.com")
+func TestRequestJSON(t *testing.T) {
+	rxhttp := NewRequest(0)
+	observable, err := rxhttp.JSONSubject("http://iot.reqly.com")
 
 	if err != nil {
-		t.Fatalf("TestRxHTTPJSON init error %v", err)
+		t.Fatalf("rx.TestHTTPJSON init error %v", err)
 		return
 	}
 
-	subscriber := NewRxObserver()
+	subscriber := NewObserver()
 	observable.Subscribe <- subscriber
 	select {
 	case event := <-subscriber.Next:
 		log.Println(event)
 		break
 	case err := <-subscriber.Error:
-		t.Fatalf("TestRxHTTPJSON error %v", err)
+		t.Fatalf("rx.TestHTTPJSON error %v", err)
 		return
 	case <-subscriber.Complete:
-		log.Println("TestRxHTTPJSON complete")
+		log.Println("rx.TestHTTPJSON complete")
 		return
 	}
 }
 
-func TestRxHTTPSSE(t *testing.T) {
-	rxhttp := NewRxHTTP(0)
-	observable, err := rxhttp.SSE("http://express-eventsource.herokuapp.com/events")
+func TestRequestSSE(t *testing.T) {
+	rxhttp := NewRequest(0)
+	observable, err := rxhttp.SSESubject("http://express-eventsource.herokuapp.com/events")
 
 	if err != nil {
-		t.Fatalf("TestRxHTTPSSE init error %v", err)
+		t.Fatalf("rx.TestHTTPSSE init error %v", err)
 		return
 	}
 
-	subscriber := NewRxObserver()
+	subscriber := NewObserver()
 	observable.Subscribe <- subscriber
 	select {
 	case event := <-subscriber.Next:
 		data := ToByteArrayArray(event, nil)
 		if len(data) < 3 {
-			t.Fatalf("TestRxHTTPSSE exppected min 3 lines, but received %v", len(data))
+			t.Fatalf("rx.TestHTTPSSE exppected min 3 lines, but received %v", len(data))
 		}
 		break
 	case err := <-subscriber.Error:
-		t.Fatalf("TestRxHTTPSSE error %v", err)
+		t.Fatalf("rx.TestHTTPSSE error %v", err)
 		return
 	case <-subscriber.Complete:
-		log.Println("TestRxHTTPSSE complete")
+		log.Println("rx.TestHTTPSSE complete")
 		return
 	}
 }

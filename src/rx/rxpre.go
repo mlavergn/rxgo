@@ -5,11 +5,15 @@ import (
 )
 
 // Filter export
-func (id *RxObservable) Filter(cond func(interface{}) bool) {
-	log.Println("RxObservable::Filter")
+func (id *Observable) Filter(fn func(interface{}) bool) *Observable {
+	log.Println("rx.Observable.Filter")
+	id.filtered = fn
+	return id
+}
 
-	id.filter = func(event interface{}) bool {
-		log.Println("RxObservable::Filter call")
-		return cond(event)
-	}
+// Map export
+func (id *Observable) Map(fn func(interface{}) interface{}) *Observable {
+	log.Println("rx.Observable.Map")
+	id.mapped = fn
+	return id
 }
