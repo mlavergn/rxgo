@@ -1,11 +1,13 @@
 package rxgo
 
 import (
+	"log"
 	"os"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
+	log.Println("Testing RxGo", Version)
 	RxSetup(true)
 	code := m.Run()
 	// teardown
@@ -27,15 +29,70 @@ loop:
 	for {
 		select {
 		case next := <-observer.Next:
-			t.Log("next", next.(int))
+			// t.Log("next", next.(int))
+			if next == nil {
+				t.Fatalf("Unexpected next nil value")
+			}
 			nextCnt--
 			break
 		case <-observer.Error:
-			t.Log("error", errorCnt)
+			// t.Log("error", errorCnt)
 			errorCnt--
 			break loop
 		case <-observer.Complete:
-			t.Log("complete", completeCnt)
+			// t.Log("complete", completeCnt)
+			completeCnt--
+			break loop
+		}
+	}
+
+	if nextCnt != 0 {
+		t.Fatalf("Expected next count of %v but got %v", 0, nextCnt)
+	}
+	if errorCnt != 0 {
+		t.Fatalf("Expected error count of %v but got %v", 0, errorCnt)
+	}
+	if completeCnt != 0 {
+		t.Fatalf("Expected complete count of %v but got %v", 0, completeCnt)
+	}
+}
+
+func TestRxReplay(t *testing.T) {
+	events := 3
+
+	nextCnt := events
+	errorCnt := 0
+	completeCnt := 1
+
+	observer := NewRxObserver()
+	subject := NewRxReplaySubject(events)
+	subject.Next <- 1
+	subject.Next <- 2
+	subject.Next <- 3
+	subject.Next <- 4
+	subject.Next <- 5
+	subject.Next <- 6
+	subject.Warmup()
+	subject.Subscribe <- observer
+loop:
+	for {
+		select {
+		case next := <-observer.Next:
+			// t.Log("next", next.(int))
+			if next == nil {
+				t.Fatalf("Unexpected next nil value")
+			}
+			nextCnt--
+			if nextCnt == 0 {
+				observer.Complete <- true
+			}
+			break
+		case <-observer.Error:
+			// t.Log("error", errorCnt)
+			errorCnt--
+			break loop
+		case <-observer.Complete:
+			// t.Log("complete", completeCnt)
 			completeCnt--
 			break loop
 		}
@@ -70,15 +127,18 @@ loop:
 	for {
 		select {
 		case next := <-observer.Next:
-			t.Log("next", next.(int))
+			if next == nil {
+				t.Fatalf("Unexpected next nil value")
+			}
+			// t.Log("next", next.(int))
 			nextCnt--
 			break
 		case <-observer.Error:
-			t.Log("error", errorCnt)
+			// t.Log("error", errorCnt)
 			errorCnt--
 			break loop
 		case <-observer.Complete:
-			t.Log("complete", completeCnt)
+			// t.Log("complete", completeCnt)
 			completeCnt--
 			break loop
 		}

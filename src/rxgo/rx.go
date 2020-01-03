@@ -8,7 +8,7 @@ import (
 )
 
 // Version export
-const Version = "0.5.0"
+const Version = "0.6.0"
 
 // RxSetup export
 func RxSetup(prod bool) {
@@ -70,10 +70,10 @@ func NewRxObserver() *RxObserver {
 }
 
 // next helper
-func (id *RxObserver) next(event interface{}) {
-	log.Println("RxObserver::next", event)
+func (id *RxObserver) next(event interface{}) *RxObserver {
+	log.Println("RxObserver::next")
 	if id.closed {
-		return
+		return id
 	}
 
 	select {
@@ -81,16 +81,18 @@ func (id *RxObserver) next(event interface{}) {
 	case id.Next <- event:
 		break
 	default:
-		log.Println("RxObserver::next no channel", event)
+		log.Println("RxObserver::next no channel")
 		break
 	}
+
+	return id
 }
 
 // error helper
-func (id *RxObserver) error(err error) {
+func (id *RxObserver) error(err error) *RxObserver {
 	log.Println("RxObserver::Error")
 	if id.closed {
-		return
+		return id
 	}
 
 	select {
@@ -103,13 +105,14 @@ func (id *RxObserver) error(err error) {
 	}
 
 	id.close <- true
+	return id
 }
 
 // complete helper
-func (id *RxObserver) complete() {
+func (id *RxObserver) complete() *RxObserver {
 	log.Println("RxObserver::Complete")
 	if id.closed {
-		return
+		return id
 	}
 
 	select {
@@ -122,6 +125,7 @@ func (id *RxObserver) complete() {
 	}
 
 	id.close <- true
+	return id
 }
 
 // -----------------------------------------------------------------------------
@@ -192,7 +196,7 @@ func NewRxObservable() *RxObservable {
 
 // onNext handler
 func (id *RxObservable) onNext(event interface{}) {
-	log.Println("RxObservable::onNext", event)
+	log.Println("RxObservable::onNext")
 
 	// pre handlers
 	if id.filter != nil {
@@ -299,6 +303,13 @@ func (id *RxObservable) Replay(bufferSize int) *RxObservable {
 // Pipe operator
 func (id *RxObservable) Pipe(sub *RxObservable) *RxObservable {
 	id.Subscribe <- sub.RxObserver
+	return id
+}
+
+// Warmup operator
+// sleep just enough to allow the observable to warm
+func (id *RxObservable) Warmup() *RxObservable {
+	<-time.After(1 * time.Millisecond)
 	return id
 }
 

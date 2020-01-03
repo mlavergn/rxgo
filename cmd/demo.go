@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"rxgo"
-	"time"
 )
 
 func demoInterval(observer *rxgo.RxObserver) *rxgo.RxObservable {
@@ -40,8 +39,7 @@ func demoReplay(observer *rxgo.RxObserver) *rxgo.RxObservable {
 	observable.Next <- 77
 	observable.Next <- 88
 	observable.Next <- 99
-	// sleep just enough to allow the observable to get hot
-	<-time.After(1 * time.Millisecond)
+	observable.Warmup()
 	observable.Subscribe <- observer
 	return observable
 }
