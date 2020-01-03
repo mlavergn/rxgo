@@ -14,7 +14,6 @@ import (
 
 // RxHTTP type
 type RxHTTP struct {
-	*RxObservable
 	client *http.Client
 }
 
@@ -83,7 +82,7 @@ func (id *RxHTTP) send(url string, mime string, delimiter byte, parser func(*RxO
 					data, err := ioutil.ReadAll(reader)
 					if err != nil {
 						log.Println(err)
-						id.Error <- err
+						subject.Error <- err
 						return
 					}
 					parser(subject, data)
@@ -91,7 +90,7 @@ func (id *RxHTTP) send(url string, mime string, delimiter byte, parser func(*RxO
 					chunk, err := reader.ReadBytes(delimiter)
 					if err != nil {
 						log.Println(err)
-						id.Error <- err
+						subject.Error <- err
 						return
 					}
 					parser(subject, chunk)
@@ -119,7 +118,7 @@ func (id *RxHTTP) JSON(url string) (*RxObservable, error) {
 		var result interface{}
 		err := json.Unmarshal(data, &result)
 		if err != nil {
-			id.Error <- err
+			subject.Error <- err
 		}
 		subject.Next <- result
 		subject.Complete <- true

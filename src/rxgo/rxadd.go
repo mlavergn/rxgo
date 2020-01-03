@@ -8,11 +8,6 @@ import (
 // -----------------------------------------------------------------------------
 // RxInterval
 
-// RxInterval type
-type RxInterval struct {
-	*RxObservable
-}
-
 // NewRxInterval init
 func NewRxInterval(msec int) *RxObservable {
 	log.Println("RxInterval::NewRxInterval")
