@@ -1,8 +1,5 @@
 package rx
 
-// -----------------------------------------------------------------------------
-// Subjects
-
 // NewSubject init
 func NewSubject() *Observable {
 	log.Println("Observable.NewSubject")

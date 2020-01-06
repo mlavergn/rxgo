@@ -13,16 +13,16 @@ func TestRequestText(t *testing.T) {
 		return
 	}
 
-	subscriber := NewSubscriber()
-	observable.Subscribe <- subscriber
+	observer := NewObserver()
+	observable.Subscribe <- observer
 	select {
-	case event := <-subscriber.Next:
+	case event := <-observer.Next:
 		log.Println(event)
 		break
-	case err := <-subscriber.Error:
+	case err := <-observer.Error:
 		t.Fatalf("Error %v", err)
 		return
-	case <-subscriber.Complete:
+	case <-observer.Complete:
 		log.Println("complete")
 		return
 	}
@@ -39,18 +39,18 @@ func TestRequestLine(t *testing.T) {
 		return
 	}
 
-	subscriber := NewSubscriber()
-	observable.Subscribe <- subscriber
+	observer := NewObserver()
+	observable.Subscribe <- observer
 	for {
 		select {
-		case event := <-subscriber.Next:
+		case event := <-observer.Next:
 			actual++
 			log.Println(event)
 			break
-		case err := <-subscriber.Error:
+		case err := <-observer.Error:
 			t.Fatalf("Error %v", err)
 			return
-		case <-subscriber.Complete:
+		case <-observer.Complete:
 			if actual != expect {
 				t.Fatalf("Expected %v lines got %v", expect, actual)
 				return
@@ -69,16 +69,16 @@ func TestRequestJSON(t *testing.T) {
 		return
 	}
 
-	subscriber := NewSubscriber()
-	observable.Subscribe <- subscriber
+	observer := NewObserver()
+	observable.Subscribe <- observer
 	select {
-	case event := <-subscriber.Next:
+	case event := <-observer.Next:
 		log.Println(event)
 		break
-	case err := <-subscriber.Error:
+	case err := <-observer.Error:
 		t.Fatalf("Error %v", err)
 		return
-	case <-subscriber.Complete:
+	case <-observer.Complete:
 		log.Println("complete")
 		return
 	}
@@ -93,20 +93,20 @@ func TestRequestSSE(t *testing.T) {
 		return
 	}
 
-	subscriber := NewSubscriber()
-	observable.Subscribe <- subscriber
+	observer := NewObserver()
+	observable.Subscribe <- observer
 	select {
-	case event := <-subscriber.Next:
+	case event := <-observer.Next:
 		data := ToByteArrayArray(event, nil)
 		if len(data) < 3 {
 			t.Fatalf("Expected min 3 lines, but received %v", len(data))
 			return
 		}
 		break
-	case err := <-subscriber.Error:
+	case err := <-observer.Error:
 		t.Fatalf("Error %v", err)
 		return
-	case <-subscriber.Complete:
+	case <-observer.Complete:
 		log.Println("complete")
 		return
 	}

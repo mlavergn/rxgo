@@ -4,9 +4,6 @@ import (
 	"time"
 )
 
-// -----------------------------------------------------------------------------
-// Interval
-
 // NewInterval init
 func NewInterval(msec int) *Observable {
 	log.Println("Interval.NewInterval")
@@ -28,10 +25,28 @@ func NewInterval(msec int) *Observable {
 				id.next(i)
 				i++
 				break
-			case <-id.finalize:
+			case <-id.finally:
 				return
 			}
 		}
+	}()
+
+	return id
+}
+
+// NewFrom init
+func NewFrom(values []interface{}) *Observable {
+	log.Println("Interval.NewFrom")
+	id := NewObservable()
+
+	go func() {
+		// wait for connect
+		<-id.Connect
+
+		for value := range values {
+			id.Next <- value
+		}
+		id.Complete <- true
 	}()
 
 	return id

@@ -4,18 +4,16 @@ import (
 	"sync"
 )
 
-// -----------------------------------------------------------------------------
-// RxObservable
-
 // Observable type
 type Observable struct {
-	*Subscriber
-	subscribers map[*Subscriber]*Subscriber
+	*Observer
+	observers   map[*Observer]*Observer
 	Connect     chan bool
 	isMulticast bool
-	Subscribe   chan *Subscriber
-	Unsubscribe chan *Subscriber
-	merged      map[*Observable]*Observable
+	Subscribe   chan *Observer
+	Unsubscribe chan *Observer
+	finally     chan bool
+	merged      int8
 	buffer      *CircularBuffer
 	filtered    func(value interface{}) bool
 	mapped      func(value interface{}) interface{}
@@ -25,13 +23,14 @@ type Observable struct {
 func NewObservable() *Observable {
 	log.Println("Observable.NewObservable")
 	id := &Observable{
-		Subscriber:  NewSubscriber(),
-		subscribers: map[*Subscriber]*Subscriber{},
+		Observer:    NewObserver(),
+		observers:   map[*Observer]*Observer{},
 		Connect:     make(chan bool, 1),
 		isMulticast: false,
-		Subscribe:   make(chan *Subscriber, 1),
-		Unsubscribe: make(chan *Subscriber, 1),
-		merged:      map[*Observable]*Observable{},
+		Subscribe:   make(chan *Observer, 1),
+		Unsubscribe: make(chan *Observer, 1),
+		finally:     make(chan bool, 1),
+		merged:      0,
 		buffer:      nil,
 		filtered:    nil,
 		mapped:      nil,
@@ -43,9 +42,14 @@ func NewObservable() *Observable {
 
 	go func() {
 		defer func() {
+			id.finally <- true
+			id.Delay(1)
+			close(id.finally)
+			id.Delay(1)
+			id.complete()
+			id.Delay(1)
 			close(id.Subscribe)
 			close(id.Unsubscribe)
-			id.complete()
 		}()
 		wg.Done()
 		for {
@@ -54,27 +58,27 @@ func NewObservable() *Observable {
 				id.onNext(event)
 				break
 			case err := <-id.Error:
-				if len(id.merged) != 0 {
+				if id.merged != 0 {
 					break
 				}
 				id.onError(err)
 				return
 			case <-id.Complete:
-				if len(id.merged) != 0 {
+				if id.merged != 0 {
 					break
 				}
 				id.onComplete()
 				return
-			case subscriber := <-id.Subscribe:
-				id.onSubscribe(subscriber)
+			case observer := <-id.Subscribe:
+				id.onSubscribe(observer)
 				break
-			case subscriber := <-id.Unsubscribe:
-				id.onUnsubscribe(subscriber)
+			case observer := <-id.Unsubscribe:
+				id.onUnsubscribe(observer)
 				// when we go cold, complete the obserable
-				if len(id.subscribers) == 0 {
-					return
+				if id.merged != 0 {
+					break
 				}
-				break
+				return
 			}
 		}
 	}()
@@ -106,9 +110,9 @@ func (id *Observable) onNext(event interface{}) {
 	}
 
 	// multicast the event
-	for _, subscriber := range id.subscribers {
-		if subscriber.next(event) == nil {
-			id.Unsubscribe <- subscriber
+	for _, observer := range id.observers {
+		if observer.next(event) == nil {
+			id.Unsubscribe <- observer
 		}
 	}
 }
@@ -116,31 +120,32 @@ func (id *Observable) onNext(event interface{}) {
 // onError handler
 func (id *Observable) onError(err error) {
 	log.Println(id.UID, "Observable.onError")
-	for key, subscriber := range id.subscribers {
-		delete(id.subscribers, key)
-		subscriber.error(err)
+	for _, observer := range id.observers {
+		delete(id.observers, observer)
+		observer.error(err)
 	}
 }
 
 // onComplete handler
 func (id *Observable) onComplete() {
 	log.Println(id.UID, "Observable.onComplete")
-	for key, subscriber := range id.subscribers {
-		delete(id.subscribers, key)
-		subscriber.complete()
+	for _, observer := range id.observers {
+		delete(id.observers, observer)
+		observer.complete()
 	}
 }
 
 // onSubscribe handler
-func (id *Observable) onSubscribe(subscriber *Subscriber) {
+func (id *Observable) onSubscribe(observer *Observer) {
 	log.Println(id.UID, "Observable.onSubscribe")
 	if !id.isMulticast {
-		for key, subscriber := range id.subscribers {
-			delete(id.subscribers, key)
-			subscriber.complete()
+		for _, observer := range id.observers {
+			delete(id.observers, observer)
+			observer.complete()
 		}
 	}
-	id.subscribers[subscriber] = subscriber
+	id.observers[observer] = observer
+	observer.Subscription = id
 
 	// connect on Subscribe
 	select {
@@ -160,16 +165,19 @@ func (id *Observable) onSubscribe(subscriber *Subscriber) {
 			if i == -1 {
 				break
 			}
-			subscriber.next(v)
+			observer.next(v)
 		}
 	}
 }
 
 // onUnsubscribe handler
-func (id *Observable) onUnsubscribe(subscriber *Subscriber) {
+func (id *Observable) onUnsubscribe(observer *Observer) {
 	log.Println(id.UID, "Observable.onUnsubscribe")
-	delete(id.subscribers, subscriber)
-	subscriber.complete()
+	observer.Subscription = nil
+	delete(id.observers, observer)
+	if !observer.closed {
+		observer.complete()
+	}
 }
 
 //
@@ -201,26 +209,26 @@ func (id *Observable) Replay(bufferSize int) *Observable {
 // Merge operator
 func (id *Observable) Merge(merge *Observable) *Observable {
 	log.Println(id.UID, "Observable.Merge")
-	id.merged[merge] = merge
-	proxy := NewSubscriber()
-	go func(proxy *Subscriber) {
+
+	merge.Multicast()
+	id.merged++
+	proxy := NewObserver()
+	go func(proxy *Observer) {
+		defer func() {
+			id.merged--
+			proxy.complete()
+		}()
 		for {
 			select {
-			case event := <-proxy.Next:
-				proxy.next(event)
-				break
-			case err := <-proxy.Error:
-				delete(id.merged, merge)
-				proxy.error(err)
+			case <-proxy.Error:
 				return
 			case <-proxy.Complete:
-				delete(id.merged, merge)
-				proxy.complete()
 				return
 			}
 		}
-	}(id.Subscriber)
+	}(id.Observer)
 	merge.Subscribe <- proxy
+	merge.Pipe(id)
 
 	return id
 }

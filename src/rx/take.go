@@ -1,7 +1,7 @@
 package rx
 
 // Take export
-func (id *Subscriber) Take(count int) *Subscriber {
+func (id *Observer) Take(count int) *Observer {
 	log.Println(id.UID, "Observable.Take")
 
 	counter := count
@@ -14,7 +14,7 @@ func (id *Subscriber) Take(count int) *Subscriber {
 }
 
 // TakeWhile export
-func (id *Subscriber) TakeWhile(cond func() bool) *Subscriber {
+func (id *Observer) TakeWhile(cond func() bool) *Observer {
 	log.Println(id.UID, "Observable.TakeWhile")
 
 	id.take = cond
@@ -23,13 +23,13 @@ func (id *Subscriber) TakeWhile(cond func() bool) *Subscriber {
 }
 
 // TakeUntil export
-func (id *Subscriber) TakeUntil(observable *Observable) *Subscriber {
+func (id *Observer) TakeUntil(observable *Observable) *Observer {
 	log.Println(id.UID, "Observable.TakeUntil")
 
-	subscriber := NewSubscriber()
-	observable.Subscribe <- subscriber
+	observer := NewObserver()
+	observable.Subscribe <- observer
 	go func() {
-		<-subscriber.Next
+		<-observer.Next
 		id.complete()
 	}()
 

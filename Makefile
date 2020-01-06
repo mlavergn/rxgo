@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.10.0
+VERSION := 0.11.0
 
 GOPATH = "${PWD}"
 
@@ -16,13 +16,13 @@ ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rx/rx.go
 
 lint:
-	GOPATH=${GOPATH} ~/go/bin/golint .
+	GOPATH=${GOPATH} ~/go/bin/golint ./src/...
 
 fmt:
-	GOPATH=${GOPATH} go fmt rx
+	GOPATH=${GOPATH} go fmt rx ./src/...
 
 vet:
-	GOPATH=${GOPATH} go vet rx
+	GOPATH=${GOPATH} go vet rx ./src/...
 
 # PROFILE = -blockprofile
 # PROFILE = -cpuprofile
@@ -33,19 +33,24 @@ profile:
 	GOPATH=${GOPATH} go tool pprof rx.prof
 
 build:
-	GOPATH=${GOPATH} go build ./...
+	GOPATH=${GOPATH} go build -v ./src/...
+
+clean:
+	GOPATH=${GOPATH} go clean
 
 demo: build
 	GOPATH=${GOPATH} go run cmd/demo.go
 
-race: build
-	GOPATH=${GOPATH} go run -race cmd/demo.go
+race:
+	GOPATH=${GOPATH} go build -race ./src/...
 
 test: build
 	GOPATH=${GOPATH} go test -v -count=1 ./src/...
 
+TEST ?= TestMerge
+COUNT ?= 1
 testx: build
-	GOPATH=${GOPATH} go test -v -count=100 ./src/... -run TestMerge
+	GOPATH=${GOPATH} go test -v -count=${COUNT} ./src/... -run ${TEST}
 
 bench: build
 	GOPATH=${GOPATH} go test -bench=. -v ./src/...

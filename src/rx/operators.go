@@ -3,7 +3,7 @@ package rx
 // Pipe operator
 func (id *Observable) Pipe(pipe *Observable) *Observable {
 	log.Println(id.UID, "Observable.Pipe")
-	id.Subscribe <- pipe.Subscriber
+	id.Subscribe <- pipe.Observer
 	return id
 }
 

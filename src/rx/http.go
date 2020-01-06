@@ -49,16 +49,16 @@ func NewRequest(timeout time.Duration) *Request {
 	}
 }
 
-// Subject export
-func (id *Request) Subject(url string, mime string, data []byte, delimiter byte, parser func(*Observable, interface{})) (*Observable, error) {
-	method := http.MethodGet
-	var payload *bytes.Buffer
+// subject export
+func (id *Request) subject(url string, mime string, data []byte, delimiter byte, parser func(*Observable, interface{})) (*Observable, error) {
+	var req *http.Request
+	var err error
 	if data != nil {
-		method = http.MethodPost
-		payload = bytes.NewBuffer(data)
+		req, err = http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	} else {
+		req, err = http.NewRequest(http.MethodGet, url, nil)
 	}
 
-	req, err := http.NewRequest(method, url, payload)
 	if err != nil {
 		log.Println(err)
 		return nil, err
@@ -102,7 +102,7 @@ func (id *Request) Subject(url string, mime string, data []byte, delimiter byte,
 						return
 					}
 					parser(subject, data)
-					subject.Yield(1)
+					subject.Delay(1)
 					break loop
 				} else {
 					chunk, err := reader.ReadBytes(delimiter)
@@ -114,7 +114,7 @@ func (id *Request) Subject(url string, mime string, data []byte, delimiter byte,
 					chunkLength := int64(len(chunk))
 					if chunkLength != 0 {
 						parser(subject, chunk)
-						subject.Yield(1)
+						subject.Delay(1)
 						if contentLength > 0 {
 							contentLength -= chunkLength
 							if contentLength <= 0 {
@@ -136,14 +136,14 @@ func (id *Request) Subject(url string, mime string, data []byte, delimiter byte,
 
 // ByteSubject export
 func (id *Request) ByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
-	return id.Subject(url, contentType, payload, 0, func(subject *Observable, raw interface{}) {
+	return id.subject(url, contentType, payload, 0, func(subject *Observable, raw interface{}) {
 		subject.Next <- raw
 	})
 }
 
 // TextSubject export
 func (id *Request) TextSubject(url string, payload []byte) (*Observable, error) {
-	return id.Subject(url, "text/plain", payload, 0, func(subject *Observable, raw interface{}) {
+	return id.subject(url, "text/plain", payload, 0, func(subject *Observable, raw interface{}) {
 		text := ToByteString(raw, "")
 		subject.Next <- text
 	})
@@ -151,14 +151,14 @@ func (id *Request) TextSubject(url string, payload []byte) (*Observable, error) 
 
 // LineSubject export
 func (id *Request) LineSubject(url string, payload []byte) (*Observable, error) {
-	return id.Subject(url, "text/plain", payload, byte('\n'), func(subject *Observable, raw interface{}) {
+	return id.subject(url, "text/plain", payload, byte('\n'), func(subject *Observable, raw interface{}) {
 		subject.Next <- raw
 	})
 }
 
 // JSONSubject export
 func (id *Request) JSONSubject(url string, payload []byte) (*Observable, error) {
-	return id.Subject(url, "application/json", payload, 0, func(subject *Observable, raw interface{}) {
+	return id.subject(url, "application/json", payload, 0, func(subject *Observable, raw interface{}) {
 		data := ToByteArray(raw, nil)
 		var result interface{}
 		err := json.Unmarshal(data, &result)
@@ -175,7 +175,7 @@ func (id *Request) SSESubject(url string, payload []byte) (*Observable, error) {
 	lines := [10][]byte{}
 	i := 0
 
-	return id.Subject(url, "text/event-stream", payload, byte('\n'), func(subject *Observable, raw interface{}) {
+	return id.subject(url, "text/event-stream", payload, byte('\n'), func(subject *Observable, raw interface{}) {
 		line := ToByteArray(raw, nil)
 		if len(line) == 1 || i == 10 {
 			// take a reference to lines

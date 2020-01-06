@@ -6,11 +6,8 @@ import (
 	"os"
 )
 
-// -----------------------------------------------------------------------------
-// Config
-
 // Version export
-const Version = "0.10.0"
+const Version = "0.11.0"
 
 // DEBUG flag for development
 const DEBUG = false
