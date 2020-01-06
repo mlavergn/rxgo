@@ -7,14 +7,6 @@ func (id *Observable) Pipe(pipe *Observable) *Observable {
 	return id
 }
 
-// Merge operator
-func (id *Observable) Merge(merge *Observable) *Observable {
-	log.Println(id.UID, "Observable.Merge")
-	id.mergeCount++
-	merge.Subscribe <- id.Subscriber
-	return id
-}
-
 // Filter export
 func (id *Observable) Filter(fn func(interface{}) bool) *Observable {
 	log.Println(id.UID, "Observable.Filter")

@@ -45,7 +45,7 @@ test: build
 	GOPATH=${GOPATH} go test -v -count=1 ./src/...
 
 testx: build
-	GOPATH=${GOPATH} go test -v -count=10 ./src/... -run TestMerge
+	GOPATH=${GOPATH} go test -v -count=100 ./src/... -run TestMerge
 
 bench: build
 	GOPATH=${GOPATH} go test -bench=. -v ./src/...

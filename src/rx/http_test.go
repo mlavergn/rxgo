@@ -6,7 +6,7 @@ import (
 
 func TestRequestText(t *testing.T) {
 	rxhttp := NewRequest(0)
-	observable, err := rxhttp.TextSubject("http://httpbin.org/get")
+	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -32,7 +32,7 @@ func TestRequestLine(t *testing.T) {
 	expect := 11
 	actual := 0
 	rxhttp := NewRequest(0)
-	observable, err := rxhttp.LineSubject("http://httpbin.org/get")
+	observable, err := rxhttp.LineSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -62,7 +62,7 @@ func TestRequestLine(t *testing.T) {
 }
 func TestRequestJSON(t *testing.T) {
 	rxhttp := NewRequest(0)
-	observable, err := rxhttp.JSONSubject("http://httpbin.org/get")
+	observable, err := rxhttp.JSONSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -86,7 +86,7 @@ func TestRequestJSON(t *testing.T) {
 
 func TestRequestSSE(t *testing.T) {
 	rxhttp := NewRequest(0)
-	observable, err := rxhttp.SSESubject("http://express-eventsource.herokuapp.com/events")
+	observable, err := rxhttp.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)

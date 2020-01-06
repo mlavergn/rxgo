@@ -10,12 +10,12 @@ import (
 // Observable type
 type Observable struct {
 	*Subscriber
-	mergeCount  int
 	subscribers map[*Subscriber]*Subscriber
-	multicast   bool
 	Connect     chan bool
+	isMulticast bool
 	Subscribe   chan *Subscriber
 	Unsubscribe chan *Subscriber
+	merged      map[*Observable]*Observable
 	buffer      *CircularBuffer
 	filtered    func(value interface{}) bool
 	mapped      func(value interface{}) interface{}
@@ -26,12 +26,12 @@ func NewObservable() *Observable {
 	log.Println("Observable.NewObservable")
 	id := &Observable{
 		Subscriber:  NewSubscriber(),
-		mergeCount:  0,
 		subscribers: map[*Subscriber]*Subscriber{},
-		multicast:   false,
 		Connect:     make(chan bool, 1),
+		isMulticast: false,
 		Subscribe:   make(chan *Subscriber, 1),
 		Unsubscribe: make(chan *Subscriber, 1),
+		merged:      map[*Observable]*Observable{},
 		buffer:      nil,
 		filtered:    nil,
 		mapped:      nil,
@@ -54,20 +54,14 @@ func NewObservable() *Observable {
 				id.onNext(event)
 				break
 			case err := <-id.Error:
-				if id.mergeCount != 0 {
-					id.mergeCount--
-					if id.mergeCount != 0 {
-						break
-					}
+				if len(id.merged) != 0 {
+					break
 				}
 				id.onError(err)
 				return
 			case <-id.Complete:
-				if id.mergeCount != 0 {
-					id.mergeCount--
-					if id.mergeCount != 0 {
-						break
-					}
+				if len(id.merged) != 0 {
+					break
 				}
 				id.onComplete()
 				return
@@ -76,6 +70,7 @@ func NewObservable() *Observable {
 				break
 			case subscriber := <-id.Unsubscribe:
 				id.onUnsubscribe(subscriber)
+				// when we go cold, complete the obserable
 				if len(id.subscribers) == 0 {
 					return
 				}
@@ -92,12 +87,6 @@ func NewObservable() *Observable {
 // onNext handler
 func (id *Observable) onNext(event interface{}) {
 	log.Println(id.UID, "Observable.onNext")
-
-	if !id.hot {
-		return
-	}
-
-	// pre handlers
 
 	// Filter
 	if id.filtered != nil {
@@ -127,8 +116,8 @@ func (id *Observable) onNext(event interface{}) {
 // onError handler
 func (id *Observable) onError(err error) {
 	log.Println(id.UID, "Observable.onError")
-	for _, subscriber := range id.subscribers {
-		delete(id.subscribers, subscriber)
+	for key, subscriber := range id.subscribers {
+		delete(id.subscribers, key)
 		subscriber.error(err)
 	}
 }
@@ -136,8 +125,8 @@ func (id *Observable) onError(err error) {
 // onComplete handler
 func (id *Observable) onComplete() {
 	log.Println(id.UID, "Observable.onComplete")
-	for _, subscriber := range id.subscribers {
-		delete(id.subscribers, subscriber)
+	for key, subscriber := range id.subscribers {
+		delete(id.subscribers, key)
 		subscriber.complete()
 	}
 }
@@ -145,11 +134,13 @@ func (id *Observable) onComplete() {
 // onSubscribe handler
 func (id *Observable) onSubscribe(subscriber *Subscriber) {
 	log.Println(id.UID, "Observable.onSubscribe")
-	if id.multicast {
-		id.subscribers[subscriber] = subscriber
-	} else {
-		id.subscribers = map[*Subscriber]*Subscriber{subscriber: subscriber}
+	if !id.isMulticast {
+		for key, subscriber := range id.subscribers {
+			delete(id.subscribers, key)
+			subscriber.complete()
+		}
 	}
+	id.subscribers[subscriber] = subscriber
 
 	// connect on Subscribe
 	select {
@@ -188,7 +179,7 @@ func (id *Observable) onUnsubscribe(subscriber *Subscriber) {
 // Multicast modifier
 func (id *Observable) Multicast() *Observable {
 	log.Println(id.UID, "Observable.Multicast")
-	id.multicast = true
+	id.isMulticast = true
 	return id
 }
 
@@ -204,5 +195,32 @@ func (id *Observable) Behavior(value interface{}) *Observable {
 func (id *Observable) Replay(bufferSize int) *Observable {
 	log.Println(id.UID, "Observable.Replay")
 	id.buffer = NewCircularBuffer(bufferSize)
+	return id
+}
+
+// Merge operator
+func (id *Observable) Merge(merge *Observable) *Observable {
+	log.Println(id.UID, "Observable.Merge")
+	id.merged[merge] = merge
+	proxy := NewSubscriber()
+	go func(proxy *Subscriber) {
+		for {
+			select {
+			case event := <-proxy.Next:
+				proxy.next(event)
+				break
+			case err := <-proxy.Error:
+				delete(id.merged, merge)
+				proxy.error(err)
+				return
+			case <-proxy.Complete:
+				delete(id.merged, merge)
+				proxy.complete()
+				return
+			}
+		}
+	}(id.Subscriber)
+	merge.Subscribe <- proxy
+
 	return id
 }

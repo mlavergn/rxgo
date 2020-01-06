@@ -7,7 +7,7 @@ package rx
 func NewSubject() *Observable {
 	log.Println("Observable.NewSubject")
 	id := NewObservable()
-	id.multicast = true
+	id.isMulticast = true
 
 	return id
 }
@@ -16,7 +16,7 @@ func NewSubject() *Observable {
 func NewBehaviorSubject(value interface{}) *Observable {
 	log.Println("Observable.NewSubject")
 	id := NewObservable()
-	id.multicast = true
+	id.isMulticast = true
 	id.Behavior(value)
 
 	return id
@@ -26,7 +26,7 @@ func NewBehaviorSubject(value interface{}) *Observable {
 func NewReplaySubject(bufferSize int) *Observable {
 	log.Println("Observable.NewSubject")
 	id := NewObservable()
-	id.multicast = true
+	id.isMulticast = true
 	id.Replay(bufferSize)
 
 	return id

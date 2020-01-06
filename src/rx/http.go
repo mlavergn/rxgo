@@ -2,6 +2,7 @@ package rx
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -49,8 +50,15 @@ func NewRequest(timeout time.Duration) *Request {
 }
 
 // Subject export
-func (id *Request) Subject(url string, mime string, delimiter byte, parser func(*Observable, interface{})) (*Observable, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func (id *Request) Subject(url string, mime string, data []byte, delimiter byte, parser func(*Observable, interface{})) (*Observable, error) {
+	method := http.MethodGet
+	var payload *bytes.Buffer
+	if data != nil {
+		method = http.MethodPost
+		payload = bytes.NewBuffer(data)
+	}
+
+	req, err := http.NewRequest(method, url, payload)
 	if err != nil {
 		log.Println(err)
 		return nil, err
@@ -127,30 +135,30 @@ func (id *Request) Subject(url string, mime string, delimiter byte, parser func(
 }
 
 // ByteSubject export
-func (id *Request) ByteSubject(url string, contentType string) (*Observable, error) {
-	return id.Subject(url, contentType, 0, func(subject *Observable, raw interface{}) {
+func (id *Request) ByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
+	return id.Subject(url, contentType, payload, 0, func(subject *Observable, raw interface{}) {
 		subject.Next <- raw
 	})
 }
 
 // TextSubject export
-func (id *Request) TextSubject(url string) (*Observable, error) {
-	return id.Subject(url, "text/plain", 0, func(subject *Observable, raw interface{}) {
+func (id *Request) TextSubject(url string, payload []byte) (*Observable, error) {
+	return id.Subject(url, "text/plain", payload, 0, func(subject *Observable, raw interface{}) {
 		text := ToByteString(raw, "")
 		subject.Next <- text
 	})
 }
 
 // LineSubject export
-func (id *Request) LineSubject(url string) (*Observable, error) {
-	return id.Subject(url, "text/plain", byte('\n'), func(subject *Observable, raw interface{}) {
+func (id *Request) LineSubject(url string, payload []byte) (*Observable, error) {
+	return id.Subject(url, "text/plain", payload, byte('\n'), func(subject *Observable, raw interface{}) {
 		subject.Next <- raw
 	})
 }
 
 // JSONSubject export
-func (id *Request) JSONSubject(url string) (*Observable, error) {
-	return id.Subject(url, "application/json", 0, func(subject *Observable, raw interface{}) {
+func (id *Request) JSONSubject(url string, payload []byte) (*Observable, error) {
+	return id.Subject(url, "application/json", payload, 0, func(subject *Observable, raw interface{}) {
 		data := ToByteArray(raw, nil)
 		var result interface{}
 		err := json.Unmarshal(data, &result)
@@ -162,12 +170,12 @@ func (id *Request) JSONSubject(url string) (*Observable, error) {
 }
 
 // SSESubject export
-func (id *Request) SSESubject(url string) (*Observable, error) {
+func (id *Request) SSESubject(url string, payload []byte) (*Observable, error) {
 	// assumption, events will never exceed 10 lines
 	lines := [10][]byte{}
 	i := 0
 
-	return id.Subject(url, "text/event-stream", byte('\n'), func(subject *Observable, raw interface{}) {
+	return id.Subject(url, "text/event-stream", payload, byte('\n'), func(subject *Observable, raw interface{}) {
 		line := ToByteArray(raw, nil)
 		if len(line) == 1 || i == 10 {
 			// take a reference to lines
