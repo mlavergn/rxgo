@@ -1,32 +1,31 @@
 package main
 
 import (
+	"fmt"
 	"rx"
+	"time"
+	"sync"
 )
 
-func demoInterval(observer *rx.Observer) *rx.Observable {
-	observable := rx.NewInterval(200)
-	observable.Subscribe <- observer
-	return observable
+func demoInterval(subscription *rx.Subscription) *rx.Observable {
+	return rx.NewInterval(200)
 }
 
-func demoSubject(observer *rx.Observer) *rx.Observable {
+func demoSubject(subscription *rx.Subscription) *rx.Observable {
 	interval := rx.NewInterval(200)
 	observable := rx.NewSubject()
 	interval.Pipe(observable)
-	observable.Subscribe <- observer
+	observable.Subscribe <- subscription
 	observable.Next <- 99
 	return observable
 }
 
-func demoBehavior(observer *rx.Observer) *rx.Observable {
-	observable := rx.NewBehaviorSubject(99)
-	observable.Subscribe <- observer
-	return observable
+func demoBehavior(subscription *rx.Subscription) *rx.Observable {
+	return rx.NewBehaviorSubject(99)
 }
 
-func demoReplay(observer *rx.Observer) *rx.Observable {
-	observable := rx.NewReplaySubject(5)
+func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
+	observable := rx.NewReplaySubject(count)
 	observable.Next <- 11
 	observable.Next <- 22
 	observable.Next <- 33
@@ -38,23 +37,57 @@ func demoReplay(observer *rx.Observer) *rx.Observable {
 	observable.Next <- 99
 	// we get here too quickly, so yield
 	observable.Delay(1)
-	observable.Subscribe <- observer
+	return observable
+}
+
+func demoRetry(subscription *rx.Subscription, closeCh chan bool) *rx.Observable {
+	rxhttp := rx.NewRequest(0)
+	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	retry := 2
+	observable.RetryWhen(func() bool {
+		retry--
+		<-time.After(1 * time.Second)
+		return (retry != 0)
+	})
 	return observable
 }
 
 func main() {
-	observer := rx.NewObserver()
-	observer.Take(10)
+	closeCh := make(chan bool)
+	subscription := rx.NewSubscription()
+	subscription.Take(10)
 
-	// observable := demoInterval(observer)
-	// observable := demoSubject(observer)
-	// observable := demoBehavior(observer)
-	observable := demoReplay(observer)
+	// observable := demoInterval(subscription)
+	// observable := demoSubject(subscription)
+	// observable := demoBehavior(subscription)
+	observable := demoReplay(subscription, 4)
+	parse := true
 
-	observer.Default(func(event interface{}) {
-		v := rx.ToInt(event, -1)
-		if v == 99 || v == -1 {
-			observable.Unsubscribe <- observer
-		}
-	})
+	// observable := demoRetry(subscription, closeCh)
+	// parse = false
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		wg.Done()
+		subscription.Default(func(event interface{}) {
+			if parse {
+				v := rx.ToInt(event, -1)
+				if v == 99 || v == -1 {
+					observable.Unsubscribe <- subscription
+				}
+			}
+		}, closeCh)
+	}()
+
+	wg.Wait()
+	observable.Subscribe <- subscription
+
+	<-closeCh
+	close(closeCh)
 }

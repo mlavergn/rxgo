@@ -18,34 +18,36 @@ type operator struct {
 
 // Observable type
 type Observable struct {
-	*Observer
-	observers   map[*Observer]*Observer
+	*Subscription
+	observers   map[*Subscription]*Subscription
 	Connect     chan bool
 	isMulticast bool
-	Subscribe   chan *Observer
-	Unsubscribe chan *Observer
+	Subscribe   chan *Subscription
+	Unsubscribe chan *Subscription
 	finally     chan bool
 	merged      int8
 	buffer      *CircularBuffer
 	operators   []operator
-	retry       func() (*Observable, error)
+	retryWhen   func() bool
+	retryFn     func(*Observable)
 }
 
 // NewObservable init
 func NewObservable() *Observable {
 	log.Println("Observable.NewObservable")
 	id := &Observable{
-		Observer:    NewObserver(),
-		observers:   map[*Observer]*Observer{},
-		Connect:     make(chan bool, 1),
-		isMulticast: false,
-		Subscribe:   make(chan *Observer, 1),
-		Unsubscribe: make(chan *Observer, 1),
-		finally:     make(chan bool, 1),
-		merged:      0,
-		buffer:      nil,
-		operators:   []operator{},
-		retry:       nil,
+		Subscription: NewSubscription(),
+		observers:    map[*Subscription]*Subscription{},
+		Connect:      make(chan bool, 1),
+		isMulticast:  false,
+		Subscribe:    make(chan *Subscription, 1),
+		Unsubscribe:  make(chan *Subscription, 1),
+		finally:      make(chan bool, 1),
+		merged:       0,
+		buffer:       nil,
+		operators:    []operator{},
+		retryWhen:    nil,
+		retryFn:      nil,
 	}
 
 	// block to allow the reader goroutine to spin up
@@ -54,6 +56,7 @@ func NewObservable() *Observable {
 
 	go func() {
 		defer func() {
+			log.Println(id.UID, "Observable.finalize")
 			id.finally <- true
 			id.Delay(1)
 			close(id.finally)
@@ -75,10 +78,16 @@ func NewObservable() *Observable {
 				if id.merged != 0 {
 					break
 				}
+				if id.doRetry() {
+					break
+				}
 				id.onError(err)
 				return
 			case <-id.Complete:
 				if id.merged != 0 {
+					break
+				}
+				if id.doRetry() {
 					break
 				}
 				id.onComplete()
@@ -117,7 +126,11 @@ func (id *Observable) onNext(event interface{}) {
 			break
 		case operatorMap:
 			mapFn := op.fn.(func(interface{}) interface{})
-			event = mapFn(event)
+			mappedEvent := mapFn(event)
+			if mappedEvent == nil {
+				return
+			}
+			event = mappedEvent
 			break
 		}
 	}
@@ -154,7 +167,7 @@ func (id *Observable) onComplete() {
 }
 
 // onSubscribe handler
-func (id *Observable) onSubscribe(observer *Observer) {
+func (id *Observable) onSubscribe(observer *Subscription) {
 	log.Println(id.UID, "Observable.onSubscribe")
 	if !id.isMulticast {
 		for _, observer := range id.observers {
@@ -163,7 +176,7 @@ func (id *Observable) onSubscribe(observer *Observer) {
 		}
 	}
 	id.observers[observer] = observer
-	observer.Subscription = id
+	observer.observable = id
 
 	// connect on Subscribe
 	select {
@@ -189,13 +202,25 @@ func (id *Observable) onSubscribe(observer *Observer) {
 }
 
 // onUnsubscribe handler
-func (id *Observable) onUnsubscribe(observer *Observer) {
+func (id *Observable) onUnsubscribe(observer *Subscription) {
 	log.Println(id.UID, "Observable.onUnsubscribe")
-	observer.Subscription = nil
+	observer.observable = nil
 	delete(id.observers, observer)
 	if !observer.closed {
 		observer.complete()
 	}
+}
+
+// return handler
+func (id *Observable) doRetry() bool {
+	if id.retryWhen != nil && id.retryFn != nil {
+		if id.retryWhen() {
+			id.Subscription = NewSubscription()
+			id.retryFn(id)
+			return true
+		}
+	}
+	return false
 }
 
 //
@@ -230,23 +255,30 @@ func (id *Observable) Merge(merge *Observable) *Observable {
 
 	merge.Multicast()
 	id.merged++
-	proxy := NewObserver()
-	go func(proxy *Observer) {
+	proxy := NewSubscription()
+	go func(subscription *Subscription) {
 		defer func() {
 			id.merged--
-			proxy.complete()
+			id.Complete <- true
 		}()
 		for {
 			select {
-			case <-proxy.Error:
+			case <-subscription.Error:
 				return
-			case <-proxy.Complete:
+			case <-subscription.Complete:
 				return
 			}
 		}
-	}(id.Observer)
+	}(id.Subscription)
 	merge.Subscribe <- proxy
 	merge.Pipe(id)
 
+	return id
+}
+
+// RetryWhen modifier
+func (id *Observable) RetryWhen(fn func() bool) *Observable {
+	log.Println(id.UID, "Observable.Retry")
+	id.retryWhen = fn
 	return id
 }

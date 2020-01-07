@@ -20,14 +20,14 @@ func TestInterval(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	observer := NewObserver()
-	observer.Take(events)
+	subscription := NewSubscription()
+	subscription.Take(events)
 	interval := NewInterval(50)
-	interval.Subscribe <- observer
+	interval.Subscribe <- subscription
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
+		case next := <-subscription.Next:
 			// t.Log("next", next.(int))
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
@@ -35,11 +35,11 @@ loop:
 			}
 			nextCnt++
 			break
-		case <-observer.Error:
+		case <-subscription.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-observer.Complete:
+		case <-subscription.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop
@@ -64,7 +64,7 @@ func TestReplay(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	observer := NewObserver()
+	subscription := NewSubscription()
 	subject := NewReplaySubject(events)
 	subject.Next <- 1
 	subject.Next <- 2
@@ -73,11 +73,11 @@ func TestReplay(t *testing.T) {
 	subject.Next <- 5
 	subject.Next <- 6
 	subject.Delay(1)
-	subject.Subscribe <- observer
+	subject.Subscribe <- subscription
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
+		case next := <-subscription.Next:
 			// t.Log("next", next.(int))
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
@@ -85,14 +85,14 @@ loop:
 			}
 			nextCnt++
 			if nextCnt == events {
-				observer.Complete <- true
+				subscription.Complete <- true
 			}
 			break
-		case <-observer.Error:
+		case <-subscription.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-observer.Complete:
+		case <-subscription.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop
@@ -117,17 +117,17 @@ func TestFilter(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	observer := NewObserver()
-	observer.Take(events)
+	subscription := NewSubscription()
+	subscription.Take(events)
 	interval := NewInterval(10)
 	interval.Filter(func(value interface{}) bool {
 		return (ToInt(value, -1)%2 == 0)
 	})
-	interval.Subscribe <- observer
+	interval.Subscribe <- subscription
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
+		case next := <-subscription.Next:
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
 				return
@@ -135,11 +135,11 @@ loop:
 			// t.Log("next", next.(int))
 			nextCnt++
 			break
-		case <-observer.Error:
+		case <-subscription.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-observer.Complete:
+		case <-subscription.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop
@@ -164,17 +164,17 @@ func TestMap(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	observer := NewObserver()
-	observer.Take(events)
+	subscription := NewSubscription()
+	subscription.Take(events)
 	interval := NewInterval(5)
 	interval.Map(func(value interface{}) interface{} {
 		return ToInt(value, 0) * 10
 	})
-	interval.Subscribe <- observer
+	interval.Subscribe <- subscription
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
+		case next := <-subscription.Next:
 			value := ToInt(next, 0)
 			if next == nil || value%10 != 0 {
 				t.Fatalf("Unexpected next value %v", next)
@@ -183,11 +183,11 @@ loop:
 			// t.Log("next", next.(int))
 			nextCnt++
 			break
-		case <-observer.Error:
+		case <-subscription.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-observer.Complete:
+		case <-subscription.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop
@@ -212,9 +212,9 @@ func TestMerge(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	observer := NewObserver()
-	observer.Take(events)
-	observer.UID = 123
+	subscription := NewSubscription()
+	subscription.Take(events)
+	subscription.UID = 123
 
 	intervalA := NewInterval(2)
 	intervalB := NewInterval(2)
@@ -227,11 +227,11 @@ func TestMerge(t *testing.T) {
 	subject.Merge(intervalC)
 	subject.Merge(intervalD)
 
-	subject.Subscribe <- observer
+	subject.Subscribe <- subscription
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
+		case next := <-subscription.Next:
 			// t.Log("next", next.(int))
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
@@ -239,11 +239,11 @@ loop:
 			}
 			nextCnt++
 			break
-		case <-observer.Error:
+		case <-subscription.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-observer.Complete:
+		case <-subscription.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop

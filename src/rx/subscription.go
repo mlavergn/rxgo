@@ -6,32 +6,32 @@ import (
 	"time"
 )
 
-// Observer type
-type Observer struct {
-	Next         chan interface{}
-	nextChan     chan interface{}
-	Error        chan error
-	Complete     chan bool
-	closeChan    chan error
-	closed       bool
-	UID          int64
-	take         func() bool
-	Subscription *Observable
+// Subscription type
+type Subscription struct {
+	Next       chan interface{}
+	nextChan   chan interface{}
+	Error      chan error
+	Complete   chan bool
+	closeChan  chan error
+	closed     bool
+	UID        int64
+	take       func() bool
+	observable *Observable
 }
 
-// NewObserver init
-func NewObserver() *Observer {
-	log.Println("Observer.NewObserver")
-	id := &Observer{
-		Next:         make(chan interface{}, 1),
-		nextChan:     make(chan interface{}, 10),
-		Error:        make(chan error, 1),
-		Complete:     make(chan bool, 1),
-		closeChan:    make(chan error, 1),
-		closed:       false,
-		UID:          time.Now().UnixNano(),
-		take:         nil,
-		Subscription: nil,
+// NewSubscription init
+func NewSubscription() *Subscription {
+	log.Println("Subscription.NewSubscription")
+	id := &Subscription{
+		Next:       make(chan interface{}, 1),
+		nextChan:   make(chan interface{}, 10),
+		Error:      make(chan error, 1),
+		Complete:   make(chan bool, 1),
+		closeChan:  make(chan error, 1),
+		closed:     false,
+		UID:        time.Now().UnixNano(),
+		take:       nil,
+		observable: nil,
 	}
 
 	// block to allow the reader goroutine to spin up
@@ -64,6 +64,7 @@ func NewObserver() *Observer {
 		defer func() {
 			recover()
 			id.closed = true
+			log.Println(id.UID, "Subscription.finalize")
 			close(id.Next)
 			close(id.nextChan)
 			close(id.Error)
@@ -80,8 +81,8 @@ func NewObserver() *Observer {
 			id.Complete <- true
 		}
 		id.Delay(1)
-		if id.Subscription != nil {
-			id.Subscription.Unsubscribe <- id
+		if id.observable != nil {
+			id.observable.Unsubscribe <- id
 		}
 	}()
 
@@ -91,8 +92,8 @@ func NewObserver() *Observer {
 }
 
 // next helper
-func (id *Observer) next(event interface{}) *Observer {
-	log.Println(id.UID, "Observer.next")
+func (id *Subscription) next(event interface{}) *Subscription {
+	log.Println(id.UID, "Subscription.next")
 	if id.closed {
 		return nil
 	}
@@ -106,8 +107,8 @@ func (id *Observer) next(event interface{}) *Observer {
 }
 
 // error helper
-func (id *Observer) error(err error) *Observer {
-	log.Println(id.UID, "Observer.Error")
+func (id *Subscription) error(err error) *Subscription {
+	log.Println(id.UID, "Subscription.Error")
 	if id.closed {
 		return nil
 	}
@@ -121,8 +122,8 @@ func (id *Observer) error(err error) *Observer {
 }
 
 // complete helper
-func (id *Observer) complete() *Observer {
-	log.Println(id.UID, "Observer.Complete")
+func (id *Subscription) complete() *Subscription {
+	log.Println(id.UID, "Subscription.Complete")
 	if id.closed {
 		return nil
 	}
@@ -136,7 +137,8 @@ func (id *Observer) complete() *Observer {
 }
 
 // Default provides a default implementation which logs to the default output
-func (id *Observer) Default(handler func(event interface{})) *Observer {
+func (id *Subscription) Default(handler func(event interface{}), closeCh chan bool) *Subscription {
+	defer func() { closeCh <- true }()
 	for {
 		select {
 		case event := <-id.Next:
@@ -161,8 +163,8 @@ func (id *Observer) Default(handler func(event interface{})) *Observer {
 
 // Delay operator
 // sleep allows the observable to yield to the go channel
-func (id *Observer) Delay(ms time.Duration) *Observer {
-	log.Println(id.UID, "Observable.Delay")
+func (id *Subscription) Delay(ms time.Duration) *Subscription {
+	// log.Println(id.UID, "Observable.Delay")
 	<-time.After(ms * time.Millisecond)
 	return id
 }
