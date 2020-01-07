@@ -4,6 +4,18 @@ import (
 	"sync"
 )
 
+type operatorType int
+
+const (
+	operatorMap operatorType = iota
+	operatorFilter
+)
+
+type operator struct {
+	op operatorType
+	fn interface{}
+}
+
 // Observable type
 type Observable struct {
 	*Observer
@@ -15,8 +27,8 @@ type Observable struct {
 	finally     chan bool
 	merged      int8
 	buffer      *CircularBuffer
-	filtered    func(value interface{}) bool
-	mapped      func(value interface{}) interface{}
+	operators   []operator
+	retry       func() (*Observable, error)
 }
 
 // NewObservable init
@@ -32,8 +44,8 @@ func NewObservable() *Observable {
 		finally:     make(chan bool, 1),
 		merged:      0,
 		buffer:      nil,
-		filtered:    nil,
-		mapped:      nil,
+		operators:   []operator{},
+		retry:       nil,
 	}
 
 	// block to allow the reader goroutine to spin up
@@ -50,6 +62,8 @@ func NewObservable() *Observable {
 			id.Delay(1)
 			close(id.Subscribe)
 			close(id.Unsubscribe)
+			id.observers = nil
+			id.operators = nil
 		}()
 		wg.Done()
 		for {
@@ -92,16 +106,20 @@ func NewObservable() *Observable {
 func (id *Observable) onNext(event interface{}) {
 	log.Println(id.UID, "Observable.onNext")
 
-	// Filter
-	if id.filtered != nil {
-		if !id.filtered(event) {
-			return
+	// Operations
+	for _, op := range id.operators {
+		switch op.op {
+		case operatorFilter:
+			filterFn := op.fn.(func(interface{}) bool)
+			if !filterFn(event) {
+				return
+			}
+			break
+		case operatorMap:
+			mapFn := op.fn.(func(interface{}) interface{})
+			event = mapFn(event)
+			break
 		}
-	}
-
-	// Map
-	if id.mapped != nil {
-		event = id.mapped(event)
 	}
 
 	// Replay / Distinct

@@ -7,7 +7,7 @@ import (
 )
 
 // Version export
-const Version = "0.11.0"
+const Version = "0.12.0"
 
 // DEBUG flag for development
 const DEBUG = false

@@ -136,55 +136,94 @@ func (id *Request) subject(url string, mime string, data []byte, delimiter byte,
 
 // ByteSubject export
 func (id *Request) ByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
-	return id.subject(url, contentType, payload, 0, func(subject *Observable, raw interface{}) {
-		subject.Next <- raw
-	})
+	retryFn := func() (*Observable, error) {
+		return id.subject(url, contentType, payload, 0, func(subject *Observable, raw interface{}) {
+			subject.Next <- raw
+		})
+	}
+	subject, err := retryFn()
+	if subject != nil {
+		subject.retry = retryFn
+	}
+	return subject, err
 }
 
 // TextSubject export
 func (id *Request) TextSubject(url string, payload []byte) (*Observable, error) {
-	return id.subject(url, "text/plain", payload, 0, func(subject *Observable, raw interface{}) {
-		text := ToByteString(raw, "")
-		subject.Next <- text
-	})
+	retryFn := func() (*Observable, error) {
+		return id.subject(url, "text/plain", payload, 0, func(subject *Observable, raw interface{}) {
+			text := ToByteString(raw, "")
+			subject.Next <- text
+		})
+	}
+	subject, err := retryFn()
+	if subject != nil {
+		subject.retry = retryFn
+	}
+	return subject, err
+
 }
 
 // LineSubject export
 func (id *Request) LineSubject(url string, payload []byte) (*Observable, error) {
-	return id.subject(url, "text/plain", payload, byte('\n'), func(subject *Observable, raw interface{}) {
-		subject.Next <- raw
-	})
+	retryFn := func() (*Observable, error) {
+		return id.subject(url, "text/plain", payload, byte('\n'), func(subject *Observable, raw interface{}) {
+			subject.Next <- raw
+		})
+	}
+	subject, err := retryFn()
+	if subject != nil {
+		subject.retry = retryFn
+	}
+	return subject, err
+
 }
 
 // JSONSubject export
 func (id *Request) JSONSubject(url string, payload []byte) (*Observable, error) {
-	return id.subject(url, "application/json", payload, 0, func(subject *Observable, raw interface{}) {
-		data := ToByteArray(raw, nil)
-		var result interface{}
-		err := json.Unmarshal(data, &result)
-		if err != nil {
-			subject.Error <- err
-		}
-		subject.Next <- result
-	})
+	retryFn := func() (*Observable, error) {
+		return id.subject(url, "application/json", payload, 0, func(subject *Observable, raw interface{}) {
+			data := ToByteArray(raw, nil)
+			var result interface{}
+			err := json.Unmarshal(data, &result)
+			if err != nil {
+				subject.Error <- err
+			}
+			subject.Next <- result
+		})
+	}
+	subject, err := retryFn()
+	if subject != nil {
+		subject.retry = retryFn
+	}
+	return subject, err
+
 }
 
 // SSESubject export
 func (id *Request) SSESubject(url string, payload []byte) (*Observable, error) {
-	// assumption, events will never exceed 10 lines
-	lines := [10][]byte{}
-	i := 0
+	retryFn := func() (*Observable, error) {
+		// assumption, events will never exceed 10 lines
+		lines := [10][]byte{}
+		i := 0
 
-	return id.subject(url, "text/event-stream", payload, byte('\n'), func(subject *Observable, raw interface{}) {
-		line := ToByteArray(raw, nil)
-		if len(line) == 1 || i == 10 {
-			// take a reference to lines
-			buffer := lines
-			subject.Next <- buffer[:i]
-			i = 0
-		} else {
-			lines[i] = line
-			i++
-		}
-	})
+		return id.subject(url, "text/event-stream", payload, byte('\n'), func(subject *Observable, raw interface{}) {
+			line := ToByteArray(raw, nil)
+			if len(line) == 1 || i == 10 {
+				// take a reference to lines
+				buffer := lines
+				subject.Next <- buffer[:i]
+				i = 0
+			} else {
+				lines[i] = line
+				i++
+			}
+		})
+	}
+	subject, err := retryFn()
+	if subject != nil {
+		subject.retry = retryFn
+	}
+	return subject, err
+
 }
