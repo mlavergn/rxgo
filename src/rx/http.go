@@ -70,7 +70,7 @@ func (id *Request) subject(url string, mime string, data []byte, delimiter byte)
 
 	go func() {
 		defer func() {
-			subject.Complete <- true
+			recover()
 		}()
 
 		// wait for connect
@@ -100,6 +100,7 @@ func (id *Request) subject(url string, mime string, data []byte, delimiter byte)
 					}
 					subject.Next <- data
 					subject.Delay(1)
+					subject.Complete <- true
 					return
 				}
 				chunk, err := reader.ReadBytes(delimiter)
@@ -114,12 +115,14 @@ func (id *Request) subject(url string, mime string, data []byte, delimiter byte)
 					if contentLength > 0 {
 						contentLength -= chunkLength
 						if contentLength <= 0 {
+							subject.Complete <- true
 							return
 						}
 					}
 				}
 				// end of read
 				if err == io.EOF {
+					subject.Complete <- true
 					return
 				}
 			}
