@@ -258,14 +258,16 @@ func (id *Observable) Merge(merge *Observable) *Observable {
 	proxy := NewSubscription()
 	go func(subscription *Subscription) {
 		defer func() {
+			recover()
 			id.merged--
-			id.Complete <- true
 		}()
 		for {
 			select {
 			case <-subscription.Error:
+				id.Complete <- true
 				return
 			case <-subscription.Complete:
+				id.Complete <- true
 				return
 			}
 		}
