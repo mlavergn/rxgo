@@ -263,6 +263,7 @@ func (id *Observable) Merge(merge *Observable) *Observable {
 		}()
 		for {
 			select {
+			case <-subscription.Next:
 			case err := <-subscription.Error:
 				id.Error <- err
 				return
