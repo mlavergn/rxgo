@@ -214,7 +214,6 @@ func TestMerge(t *testing.T) {
 
 	subscription := NewSubscription()
 	subscription.Take(events)
-	subscription.UID = 123
 
 	intervalA := NewInterval(2)
 	intervalB := NewInterval(2)

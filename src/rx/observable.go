@@ -19,17 +19,18 @@ type operator struct {
 // Observable type
 type Observable struct {
 	*Subscription
-	observers   map[*Subscription]*Subscription
-	Connect     chan bool
-	isMulticast bool
-	Subscribe   chan *Subscription
-	Unsubscribe chan *Subscription
-	finally     chan bool
-	merged      int8
-	buffer      *CircularBuffer
-	operators   []operator
-	retryWhen   func() bool
-	retryFn     func(*Observable)
+	observers    map[*Subscription]*Subscription
+	Connect      chan bool
+	isMulticast  bool
+	Subscribe    chan *Subscription
+	Unsubscribe  chan *Subscription
+	finally      chan bool
+	merged       int8
+	buffer       *CircularBuffer
+	operators    []operator
+	retryWhen    func() bool
+	retryFn      func(*Observable)
+	catchErrorFn func(error)
 }
 
 // NewObservable init
@@ -75,10 +76,9 @@ func NewObservable() *Observable {
 				id.onNext(event)
 				break
 			case err := <-id.Error:
-				if id.merged != 0 {
-					break
-				}
-				if id.doRetry() {
+				if id.catchErrorFn != nil {
+					id.catchErrorFn(err)
+					id.Complete <- true
 					break
 				}
 				id.onError(err)
@@ -263,8 +263,8 @@ func (id *Observable) Merge(merge *Observable) *Observable {
 		}()
 		for {
 			select {
-			case <-subscription.Error:
-				id.Complete <- true
+			case err := <-subscription.Error:
+				id.Error <- err
 				return
 			case <-subscription.Complete:
 				id.Complete <- true
@@ -282,5 +282,12 @@ func (id *Observable) Merge(merge *Observable) *Observable {
 func (id *Observable) RetryWhen(fn func() bool) *Observable {
 	log.Println(id.UID, "Observable.Retry")
 	id.retryWhen = fn
+	return id
+}
+
+// CatchError modifier
+func (id *Observable) CatchError(fn func(error)) *Observable {
+	log.Println(id.UID, "Observable.CatchError")
+	id.catchErrorFn = fn
 	return id
 }

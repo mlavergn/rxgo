@@ -2,6 +2,7 @@ package rx
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -14,7 +15,7 @@ type Subscription struct {
 	Complete   chan bool
 	closeChan  chan error
 	closed     bool
-	UID        int64
+	UID        string
 	take       func() bool
 	observable *Observable
 }
@@ -29,7 +30,7 @@ func NewSubscription() *Subscription {
 		Complete:   make(chan bool, 1),
 		closeChan:  make(chan error, 1),
 		closed:     false,
-		UID:        time.Now().UnixNano(),
+		UID:        strconv.FormatInt(time.Now().UnixNano(), 10),
 		take:       nil,
 		observable: nil,
 	}
