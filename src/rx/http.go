@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -49,8 +50,9 @@ func NewRequest(timeout time.Duration) *Request {
 	}
 }
 
-// subject export
-func (id *Request) subject(url string, mime string, data []byte, delimiter byte) (*Observable, error) {
+// httpSubject export
+func (id *Request) httpSubject(url string, mime string, data []byte, delimiter byte) (*Observable, error) {
+	log.Println("httpSubject")
 	var req *http.Request
 	var err error
 	if data != nil {
@@ -68,11 +70,11 @@ func (id *Request) subject(url string, mime string, data []byte, delimiter byte)
 
 	subject := NewSubject()
 
-	go func() {
-		defer func() {
-			recover()
-		}()
+	var wg sync.WaitGroup
+	wg.Add(1)
 
+	go func() {
+		wg.Done()
 		// wait for connect
 		<-subject.Connect
 
@@ -87,74 +89,83 @@ func (id *Request) subject(url string, mime string, data []byte, delimiter byte)
 		if contentLength == 0 {
 			contentLength = -1
 		}
+		dlog.Println(subject.UID, "httpSubject.ContentLength", contentLength)
 		reader := bufio.NewReader(resp.Body)
 
 		for {
-			select {
-			default:
-				if delimiter == 0 {
-					data, err := ioutil.ReadAll(reader)
-					if err != nil {
-						subject.Error <- err
-						return
-					}
-					subject.Next <- data
-					subject.Delay(1)
-					subject.Complete <- true
-					return
-				}
-				chunk, err := reader.ReadBytes(delimiter)
-				if err != nil && err != io.EOF {
+			if delimiter == 0 {
+				data, err := ioutil.ReadAll(reader)
+				if err != nil {
+					dlog.Println(subject.UID, "httpSubject.Error", err)
 					subject.Error <- err
 					return
 				}
-				chunkLength := int64(len(chunk))
-				if chunkLength != 0 {
-					subject.Next <- chunk
-					subject.Delay(1)
-					if contentLength > 0 {
-						contentLength -= chunkLength
-						if contentLength <= 0 {
-							subject.Complete <- true
-							return
-						}
+				subject.Next <- data
+				dlog.Println(subject.UID, "httpSubject.Complete via ReadAll")
+				subject.yield()
+				subject.Complete <- true
+				return
+			}
+			chunk, err := reader.ReadBytes(delimiter)
+			if err != nil && err != io.EOF {
+				dlog.Println(subject.UID, "httpSubject.Error", err)
+				subject.Error <- err
+				return
+			}
+			chunkLength := int64(len(chunk))
+			if chunkLength != 0 {
+				dlog.Println(subject.UID, "httpSubject.Next")
+				subject.Next <- chunk
+				if contentLength > 0 {
+					contentLength -= chunkLength
+					if contentLength <= 0 {
+						dlog.Println(subject.UID, "httpSubject.Complete via ContentLength")
+						subject.yield()
+						subject.Complete <- true
+						return
 					}
 				}
-				// end of read
-				if err == io.EOF {
-					subject.Complete <- true
-					return
-				}
+			}
+			// end of read
+			if err == io.EOF {
+				dlog.Println(subject.UID, "httpSubject.Complete via EOF")
+				subject.yield()
+				subject.Complete <- true
+				return
 			}
 		}
 	}()
 
+	wg.Wait()
 	return subject, nil
 }
 
 // ByteSubject export
 func (id *Request) ByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
+	log.Println("ByteSubject")
 	subject := NewSubject()
 
-	subject.retryFn = func(observer *Observable) {
-		httpSubject, err := id.subject(url, contentType, payload, 0)
+	subject.resubscribeFn = func(observer *Observable) {
+		httpSubject, err := id.httpSubject(url, contentType, payload, 0)
 		if err != nil {
 			observer.Error <- err
 			return
 		}
+		httpSubject.UID = "httpSubject:" + observer.UID
 		httpSubject.Pipe(observer)
 	}
-	subject.retryFn(subject)
+	subject.resubscribeFn(subject)
 
 	return subject, nil
 }
 
 // TextSubject export
 func (id *Request) TextSubject(url string, payload []byte) (*Observable, error) {
+	log.Println("TextSubject")
 	subject := NewSubject()
 
-	subject.retryFn = func(observer *Observable) {
-		httpSubject, err := id.subject(url, "text/plain", payload, 0)
+	subject.resubscribeFn = func(observer *Observable) {
+		httpSubject, err := id.httpSubject(url, "text/plain", payload, 0)
 		if err != nil {
 			observer.Error <- err
 			return
@@ -162,36 +173,40 @@ func (id *Request) TextSubject(url string, payload []byte) (*Observable, error) 
 		httpSubject.Map(func(event interface{}) interface{} {
 			return ToByteString(event, "")
 		})
+		httpSubject.UID = "httpSubject:" + observer.UID
 		httpSubject.Pipe(observer)
 	}
-	subject.retryFn(subject)
+	subject.resubscribeFn(subject)
 
 	return subject, nil
 }
 
 // LineSubject export
 func (id *Request) LineSubject(url string, payload []byte) (*Observable, error) {
+	log.Println("LineSubject")
 	subject := NewSubject()
 
-	subject.retryFn = func(observer *Observable) {
-		httpSubject, err := id.subject(url, "text/plain", payload, byte('\n'))
+	subject.resubscribeFn = func(observer *Observable) {
+		httpSubject, err := id.httpSubject(url, "text/plain", payload, byte('\n'))
 		if err != nil {
 			observer.Error <- err
 			return
 		}
+		httpSubject.UID = "httpSubject:" + observer.UID
 		httpSubject.Pipe(observer)
 	}
-	subject.retryFn(subject)
+	subject.resubscribeFn(subject)
 
 	return subject, nil
 }
 
 // JSONSubject export
 func (id *Request) JSONSubject(url string, payload []byte) (*Observable, error) {
+	log.Println("JSONSubject")
 	subject := NewSubject()
 
-	subject.retryFn = func(observer *Observable) {
-		httpSubject, err := id.subject(url, "application/json", payload, 0)
+	subject.resubscribeFn = func(observer *Observable) {
+		httpSubject, err := id.httpSubject(url, "application/json", payload, 0)
 		if err != nil {
 			observer.Error <- err
 			return
@@ -206,23 +221,25 @@ func (id *Request) JSONSubject(url string, payload []byte) (*Observable, error) 
 			}
 			return result
 		})
+		httpSubject.UID = "httpSubject:" + observer.UID
 		httpSubject.Pipe(observer)
 	}
-	subject.retryFn(subject)
+	subject.resubscribeFn(subject)
 
 	return subject, nil
 }
 
 // SSESubject export
 func (id *Request) SSESubject(url string, payload []byte) (*Observable, error) {
+	log.Println("SSESubject")
 	subject := NewSubject()
 
-	subject.retryFn = func(observer *Observable) {
+	subject.resubscribeFn = func(observer *Observable) {
 		// assumption, events will never exceed 10 lines
 		lines := [10][]byte{}
 		i := 0
 
-		httpSubject, err := id.subject(url, "text/event-stream", payload, byte('\n'))
+		httpSubject, err := id.httpSubject(url, "text/event-stream", payload, byte('\n'))
 		if err != nil {
 			observer.Error <- err
 			return
@@ -239,9 +256,10 @@ func (id *Request) SSESubject(url string, payload []byte) (*Observable, error) {
 			i++
 			return nil
 		})
+		httpSubject.UID = "httpSubject:" + observer.UID
 		httpSubject.Pipe(observer)
 	}
-	subject.retryFn(subject)
+	subject.resubscribeFn(subject)
 
 	return subject, nil
 }

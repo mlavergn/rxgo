@@ -1,89 +1,91 @@
 package rx
 
 import (
-	"fmt"
 	"strconv"
 	"sync"
 	"time"
 )
 
+// Event type
+type Event struct {
+	value    interface{}
+	err      error
+	complete bool
+}
+
 // Subscription type
 type Subscription struct {
-	Next       chan interface{}
-	nextChan   chan interface{}
-	Error      chan error
-	Complete   chan bool
-	closeChan  chan error
-	closed     bool
-	UID        string
-	take       func() bool
-	observable *Observable
+	Next         chan interface{}
+	Error        chan error
+	Complete     chan bool
+	eventChan    chan Event
+	finalizeOnce sync.Once
+	closed       bool
+	UID          string
+	takeFn       func() bool
+	observable   *Observable
 }
 
 // NewSubscription init
 func NewSubscription() *Subscription {
 	log.Println("Subscription.NewSubscription")
 	id := &Subscription{
+		eventChan:  make(chan Event, 10),
 		Next:       make(chan interface{}, 1),
-		nextChan:   make(chan interface{}, 10),
 		Error:      make(chan error, 1),
 		Complete:   make(chan bool, 1),
-		closeChan:  make(chan error, 1),
 		closed:     false,
 		UID:        strconv.FormatInt(time.Now().UnixNano(), 10),
-		take:       nil,
+		takeFn:     nil,
 		observable: nil,
 	}
 
-	// block to allow the reader goroutine to spin up
+	// waiter to allow the goroutine to spin up
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
-	// next handler
 	go func() {
 		defer func() {
-			recover()
+			id.closed = true
+			log.Println(id.UID, "Subscription.finalize")
+			close(id.eventChan)
+			close(id.Next)
+			close(id.Error)
+			close(id.Complete)
 		}()
 		wg.Done()
 
 		hot := true
-		for hot {
-			id.Next <- <-id.nextChan
+		for {
+			dlog.Println(id.UID, "Subscription<-eventChan")
+			event := <-id.eventChan
+			switch {
+			case event.value != nil:
+				dlog.Println(id.UID, "Subscription<-Next")
+				if hot {
+					id.Next <- event.value
+				}
 
-			// Take
-			if id.take != nil {
-				if !id.take() {
+				// Take
+				if id.takeFn != nil && !id.takeFn() {
 					hot = false
+					dlog.Println(id.UID, "Take complete")
+					if id.observable != nil {
+						id.observable.Unsubscribe <- id
+						id.observable.yield()
+					}
 					id.complete()
 				}
+				break
+			case event.err != nil:
+				dlog.Println(id.UID, "Subscription<-Error")
+				id.Error <- event.err
+				return
+			case event.complete == true:
+				dlog.Println(id.UID, "Subscription<-Complete")
+				id.Complete <- true
+				return
 			}
-		}
-	}()
-
-	// error/complete handler
-	go func() {
-		defer func() {
-			recover()
-			id.closed = true
-			log.Println(id.UID, "Subscription.finalize")
-			close(id.Next)
-			close(id.nextChan)
-			close(id.Error)
-			close(id.Complete)
-			close(id.closeChan)
-		}()
-		wg.Done()
-
-		err := <-id.closeChan
-		id.Delay(1)
-		if err != nil {
-			id.Error <- err
-		} else {
-			id.Complete <- true
-		}
-		id.Delay(1)
-		if id.observable != nil {
-			id.observable.Unsubscribe <- id
 		}
 	}()
 
@@ -99,73 +101,51 @@ func (id *Subscription) next(event interface{}) *Subscription {
 		return nil
 	}
 
-	defer func() {
-		recover()
-	}()
-	id.nextChan <- event
+	id.eventChan <- Event{value: event}
 
 	return id
 }
 
 // error helper
 func (id *Subscription) error(err error) *Subscription {
-	log.Println(id.UID, "Subscription.Error")
-	if id.closed {
-		return nil
-	}
+	log.Println(id.UID, "Subscription.error")
 
-	defer func() {
-		recover()
-	}()
-	id.closeChan <- err
+	id.finalizeOnce.Do(func() {
+		id.eventChan <- Event{err: err}
+	})
 
 	return id
 }
 
 // complete helper
 func (id *Subscription) complete() *Subscription {
-	log.Println(id.UID, "Subscription.Complete")
-	if id.closed {
-		return nil
-	}
+	log.Println(id.UID, "Subscription.complete")
 
-	defer func() {
-		recover()
-	}()
-	id.closeChan <- nil
+	id.finalizeOnce.Do(func() {
+		id.eventChan <- Event{complete: true}
+	})
 
 	return id
 }
 
 // Default provides a default implementation which logs to the default output
 func (id *Subscription) Default(handler func(event interface{}), closeCh chan bool) *Subscription {
+	log.Println(id.UID, "Subscription.Default")
 	defer func() { closeCh <- true }()
 	for {
 		select {
 		case event := <-id.Next:
-			fmt.Println(id.UID, "Next", event)
+			log.Println(id.UID, "<-Next", event)
 			if handler != nil {
 				handler(event)
 			}
 			break
 		case err := <-id.Error:
-			fmt.Println(id.UID, "Error", err)
+			log.Println(id.UID, "<-Error", err)
 			return id
 		case <-id.Complete:
-			fmt.Println(id.UID, "Complete")
+			log.Println(id.UID, "<-Complete")
 			return id
 		}
 	}
-}
-
-//
-// Operators
-//
-
-// Delay operator
-// sleep allows the observable to yield to the go channel
-func (id *Subscription) Delay(ms time.Duration) *Subscription {
-	// log.Println(id.UID, "Observable.Delay")
-	<-time.After(ms * time.Millisecond)
-	return id
 }

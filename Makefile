@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.17.0
+VERSION := 0.18.0
 
 GOPATH = "${PWD}"
 
@@ -45,7 +45,7 @@ race:
 	GOPATH=${GOPATH} go build -race ./src/...
 
 test: build
-	GOPATH=${GOPATH} go test -v -count=1 ./src/...
+	GOPATH=${GOPATH} go test -v -count=${COUNT} ./src/...
 
 TEST ?= TestMerge
 COUNT ?= 1

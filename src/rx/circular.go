@@ -32,12 +32,12 @@ func (id *CircularBuffer) Add(value interface{}) {
 	// id.lock.Lock()
 
 	id.end++
-	// end loop check
+	// loop check
 	if id.end >= id.Capacity {
 		id.end = 0
 	}
 
-	// when Length is 0 (to be 1), allow start == end
+	// when buffer is empty (Length == 0, to be 1), allow start == end
 	if id.end == id.start && id.Length != 0 {
 		id.start++
 	}
@@ -66,7 +66,7 @@ func (id *CircularBuffer) Next(next int) (int, interface{}) {
 		index = id.start
 	}
 
-	// base case, are we a buffer length 1 -or- is index out of range
+	// base case, are we at buffer length 1 -or- is index out of range
 	if (index == id.start && next != -1) || (index < id.start && index > id.end) {
 		return -1, nil
 	}
@@ -76,7 +76,7 @@ func (id *CircularBuffer) Next(next int) (int, interface{}) {
 
 	// prepare the next index
 	index++
-	// next loop check
+	// loop check
 	if index >= id.Capacity {
 		index = 0
 	}

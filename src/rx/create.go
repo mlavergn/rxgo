@@ -1,6 +1,7 @@
 package rx
 
 import (
+	"sync"
 	"time"
 )
 
@@ -9,7 +10,11 @@ func NewInterval(msec int) *Observable {
 	log.Println("Interval.NewInterval")
 	id := NewObservable()
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	go func() {
+		wg.Done()
 		ticker := time.NewTicker(time.Duration(msec) * time.Millisecond)
 		defer func() {
 			ticker.Stop()
@@ -25,12 +30,13 @@ func NewInterval(msec int) *Observable {
 				id.next(i)
 				i++
 				break
-			case <-id.finally:
+			case <-id.Finalize:
 				return
 			}
 		}
 	}()
 
+	wg.Wait()
 	return id
 }
 
@@ -39,7 +45,11 @@ func NewFrom(values []interface{}) *Observable {
 	log.Println("Interval.NewFrom")
 	id := NewObservable()
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	go func() {
+		wg.Done()
 		// wait for connect
 		<-id.Connect
 
@@ -49,5 +59,6 @@ func NewFrom(values []interface{}) *Observable {
 		id.Complete <- true
 	}()
 
+	wg.Wait()
 	return id
 }

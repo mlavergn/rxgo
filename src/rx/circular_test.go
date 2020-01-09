@@ -5,56 +5,62 @@ import (
 )
 
 func TestCircularLoopless(t *testing.T) {
-	circ := NewCircularBuffer(4)
-	circ.Add(1)
-	circ.Add(2)
-
-	if circ.Capacity != 4 {
-		t.Fatalf("Expected Length %v but got %v", 4, circ.Capacity)
-	}
-	if circ.Length != 2 {
-		t.Fatalf("Expected Length %v but got %v", 2, circ.Length)
+	capacity := 10
+	count := 5
+	buffer := NewCircularBuffer(capacity)
+	for i := 1; i <= count; i++ {
+		buffer.Add(i)
 	}
 
-	i, v := circ.Next(-1)
+	if buffer.Capacity != capacity {
+		t.Fatalf("Expected Length %v but got %v", capacity, buffer.Capacity)
+	}
+	if buffer.Length != capacity/2 {
+		t.Fatalf("Expected Length %v but got %v", count, buffer.Length)
+	}
+
+	i, v := buffer.Next(-1)
 	if i != 1 || v != 1 {
 		t.Fatalf("Expected index value pair %v:%v but got %v:%v", 1, 1, i, v)
 	}
 }
 
 func TestCircularLoop(t *testing.T) {
-	size := 4
-	circ := NewCircularBuffer(size)
-	circ.Add(1)
-	circ.Add(2)
-	circ.Add(3)
-	circ.Add(4)
-	circ.Add(5)
-	circ.Add(6)
+	capacity := 10
+	count := 100
+	buffer := NewCircularBuffer(capacity)
 
-	if circ.Capacity != size {
-		t.Fatalf("Expected Length %v but got %v", size, circ.Capacity)
+	if buffer.Length != 0 {
+		t.Fatalf("Expected Length %v but got %v", 0, buffer.Length)
 	}
-	if circ.Length != size {
-		t.Fatalf("Expected Length %v but got %v", size, circ.Length)
+
+	for x := 1; x < count; x++ {
+		buffer.Add(x)
+	}
+
+	if buffer.Capacity != capacity {
+		t.Fatalf("Expected Length %v but got %v", capacity, buffer.Capacity)
+	}
+	if buffer.Length != capacity {
+		t.Fatalf("Expected Length %v but got %v", capacity, buffer.Length)
 	}
 
 	i := -1
 	var v interface{}
-	for j := 0; j < size; j++ {
-		i, v = circ.Next(i)
-		if j == size && i != -1 {
-			t.Fatalf("Expected end of data (-1) for item %v but got %v", size, i)
+	for j := 0; j < capacity; j++ {
+		i, v = buffer.Next(i)
+		if j == capacity && i != -1 {
+			t.Fatalf("Expected end of data (-1) for item %v but got %v", capacity, i)
 		}
 		if i == -1 {
 			break
 		}
-		if j+3 != v {
-			t.Fatalf("Expected index value pair %v:%v but got %v:%v", j, j+3, i, v)
+		if count-capacity+j != v {
+			t.Fatalf("Expected index value pair %v:%v but got %v:%v", j, count-capacity+j, i, v)
 		}
 	}
 
-	if circ.Capacity != size {
-		t.Fatalf("Expected Length %v but got %v", size, circ.Capacity)
+	if buffer.Capacity != capacity {
+		t.Fatalf("Expected Length %v but got %v", capacity, buffer.Capacity)
 	}
 }

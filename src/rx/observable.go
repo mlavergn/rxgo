@@ -2,6 +2,7 @@ package rx
 
 import (
 	"sync"
+	"time"
 )
 
 type operatorType int
@@ -19,36 +20,41 @@ type operator struct {
 // Observable type
 type Observable struct {
 	*Subscription
-	observers    map[*Subscription]*Subscription
-	Connect      chan bool
-	isMulticast  bool
-	Subscribe    chan *Subscription
-	Unsubscribe  chan *Subscription
-	finally      chan bool
-	merged       int8
-	buffer       *CircularBuffer
-	operators    []operator
-	retryWhen    func() bool
-	retryFn      func(*Observable)
-	catchErrorFn func(error)
+	observers     map[*Subscription]*Subscription
+	Connect       chan bool
+	shared        bool
+	multicast     bool
+	Subscribe     chan *Subscription
+	Unsubscribe   chan *Subscription
+	Finalize      chan bool
+	merged        map[*Observable]*Observable
+	buffer        *CircularBuffer
+	operators     []operator
+	repeatWhenFn  func() bool
+	retryWhenFn   func() bool
+	catchErrorFn  func(error)
+	resubscribeFn func(*Observable)
 }
 
 // NewObservable init
 func NewObservable() *Observable {
 	log.Println("Observable.NewObservable")
 	id := &Observable{
-		Subscription: NewSubscription(),
-		observers:    map[*Subscription]*Subscription{},
-		Connect:      make(chan bool, 1),
-		isMulticast:  false,
-		Subscribe:    make(chan *Subscription, 1),
-		Unsubscribe:  make(chan *Subscription, 1),
-		finally:      make(chan bool, 1),
-		merged:       0,
-		buffer:       nil,
-		operators:    []operator{},
-		retryWhen:    nil,
-		retryFn:      nil,
+		Subscription:  NewSubscription(),
+		observers:     map[*Subscription]*Subscription{},
+		Connect:       make(chan bool, 1),
+		shared:        false,
+		multicast:     false,
+		Subscribe:     make(chan *Subscription, 1),
+		Unsubscribe:   make(chan *Subscription, 1),
+		Finalize:      make(chan bool, 1),
+		merged:        map[*Observable]*Observable{},
+		buffer:        nil,
+		operators:     []operator{},
+		repeatWhenFn:  nil,
+		retryWhenFn:   nil,
+		catchErrorFn:  nil,
+		resubscribeFn: nil,
 	}
 
 	// block to allow the reader goroutine to spin up
@@ -57,13 +63,19 @@ func NewObservable() *Observable {
 
 	go func() {
 		defer func() {
-			log.Println(id.UID, "Observable.finalize")
-			id.finally <- true
-			id.Delay(1)
-			close(id.finally)
-			id.Delay(1)
+			log.Println(id.UID, "Observable.Finalize")
+			// remove and unsubscribe from all merged
+			if len(id.merged) != 0 {
+				for merge := range id.merged {
+					delete(id.merged, merge)
+					merge.Unsubscribe <- id.Subscription
+				}
+			}
+			id.Finalize <- true
+			id.yield()
+			close(id.Finalize)
 			id.complete()
-			id.Delay(1)
+			close(id.Connect)
 			close(id.Subscribe)
 			close(id.Unsubscribe)
 			id.observers = nil
@@ -73,34 +85,39 @@ func NewObservable() *Observable {
 		for {
 			select {
 			case event := <-id.Next:
+				dlog.Println(id.UID, "Observable<-Next")
 				id.onNext(event)
 				break
 			case err := <-id.Error:
+				dlog.Println(id.UID, "Observable<-Error")
 				if id.catchErrorFn != nil {
 					id.catchErrorFn(err)
 					id.Complete <- true
 					break
 				}
+				if id.onResubscribe(err) {
+					return
+				}
 				id.onError(err)
 				return
 			case <-id.Complete:
-				if id.merged != 0 {
+				dlog.Println(id.UID, "Observable<-Complete")
+				if len(id.merged) != 0 {
+					dlog.Println(id.UID, "Observable<-Unsubscribe error blocked by active merge")
 					break
 				}
-				if id.doRetry() {
-					break
+				if id.onResubscribe(nil) {
+					return
 				}
 				id.onComplete()
 				return
 			case observer := <-id.Subscribe:
+				dlog.Println(id.UID, "Observable<-Subscribe")
 				id.onSubscribe(observer)
 				break
 			case observer := <-id.Unsubscribe:
+				dlog.Println(id.UID, "Observable<-Unsubscribe")
 				id.onUnsubscribe(observer)
-				// when we go cold, complete the obserable
-				if id.merged != 0 {
-					break
-				}
 				return
 			}
 		}
@@ -142,9 +159,7 @@ func (id *Observable) onNext(event interface{}) {
 
 	// multicast the event
 	for _, observer := range id.observers {
-		if observer.next(event) == nil {
-			id.Unsubscribe <- observer
-		}
+		observer.next(event)
 	}
 }
 
@@ -169,7 +184,7 @@ func (id *Observable) onComplete() {
 // onSubscribe handler
 func (id *Observable) onSubscribe(observer *Subscription) {
 	log.Println(id.UID, "Observable.onSubscribe")
-	if !id.isMulticast {
+	if !id.multicast {
 		for _, observer := range id.observers {
 			delete(id.observers, observer)
 			observer.complete()
@@ -206,21 +221,37 @@ func (id *Observable) onUnsubscribe(observer *Subscription) {
 	log.Println(id.UID, "Observable.onUnsubscribe")
 	observer.observable = nil
 	delete(id.observers, observer)
-	if !observer.closed {
-		observer.complete()
+	observer.complete()
+	if len(id.observers) == 0 {
+		dlog.Println(id.UID, "Observable.Subscription->Complete")
+		id.Subscription.Complete <- true
 	}
 }
 
-// return handler
-func (id *Observable) doRetry() bool {
-	if id.retryWhen != nil && id.retryFn != nil {
-		if id.retryWhen() {
-			id.Subscription = NewSubscription()
-			id.retryFn(id)
-			return true
+// onResubscribe handler
+func (id *Observable) onResubscribe(err error) bool {
+	if id.resubscribeFn != nil {
+		if err != nil {
+			if id.retryWhenFn != nil && id.retryWhenFn() {
+				id.Subscription = NewSubscription()
+				id.resubscribeFn(id)
+				return true
+			}
+		} else {
+			if id.repeatWhenFn != nil && id.repeatWhenFn() {
+				id.Subscription = NewSubscription()
+				id.resubscribeFn(id)
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// yield allows channel writes to flush
+func (id *Observable) yield() *Observable {
+	<-time.After(1 * time.Millisecond)
+	return id
 }
 
 //
@@ -230,59 +261,36 @@ func (id *Observable) doRetry() bool {
 // Multicast modifier
 func (id *Observable) Multicast() *Observable {
 	log.Println(id.UID, "Observable.Multicast")
-	id.isMulticast = true
+	id.multicast = true
 	return id
 }
 
-// Behavior modifier
-func (id *Observable) Behavior(value interface{}) *Observable {
+// setBehavior modifier
+func (id *Observable) setBehavior(value interface{}) *Observable {
 	log.Println(id.UID, "Observable.Behavior")
 	id.buffer = NewCircularBuffer(1)
 	id.buffer.Add(value)
 	return id
 }
 
-// Replay modifier
-func (id *Observable) Replay(bufferSize int) *Observable {
+// setReplay modifier
+func (id *Observable) setReplay(bufferSize int) *Observable {
 	log.Println(id.UID, "Observable.Replay")
 	id.buffer = NewCircularBuffer(bufferSize)
 	return id
 }
 
-// Merge operator
-func (id *Observable) Merge(merge *Observable) *Observable {
-	log.Println(id.UID, "Observable.Merge")
-
-	merge.Multicast()
-	id.merged++
-	proxy := NewSubscription()
-	go func(subscription *Subscription) {
-		defer func() {
-			recover()
-			id.merged--
-		}()
-		for {
-			select {
-			case <-subscription.Next:
-			case err := <-subscription.Error:
-				id.Error <- err
-				return
-			case <-subscription.Complete:
-				id.Complete <- true
-				return
-			}
-		}
-	}(id.Subscription)
-	merge.Subscribe <- proxy
-	merge.Pipe(id)
-
+// RetryWhen modifier
+func (id *Observable) RetryWhen(fn func() bool) *Observable {
+	log.Println(id.UID, "Observable.RetryWhen")
+	id.retryWhenFn = fn
 	return id
 }
 
-// RetryWhen modifier
-func (id *Observable) RetryWhen(fn func() bool) *Observable {
-	log.Println(id.UID, "Observable.Retry")
-	id.retryWhen = fn
+// RepeatWhen modifier
+func (id *Observable) RepeatWhen(fn func() bool) *Observable {
+	log.Println(id.UID, "Observable.RepeatWhen")
+	id.repeatWhenFn = fn
 	return id
 }
 
@@ -290,5 +298,28 @@ func (id *Observable) RetryWhen(fn func() bool) *Observable {
 func (id *Observable) CatchError(fn func(error)) *Observable {
 	log.Println(id.UID, "Observable.CatchError")
 	id.catchErrorFn = fn
+	return id
+}
+
+//
+// Operators
+//
+
+// Merge operator
+func (id *Observable) Merge(merge *Observable) *Observable {
+	log.Println(id.UID, "Observable.Merge")
+
+	merge.Multicast()
+	id.merged[merge] = merge
+	merge.Pipe(id)
+
+	return id
+}
+
+// Delay operator
+// sleep allows the observable to yield to the go channel
+func (id *Observable) Delay(ms time.Duration) *Observable {
+	// log.Println(id.UID, "Observable.Delay")
+	<-time.After(ms * time.Millisecond)
 	return id
 }

@@ -13,18 +13,31 @@ func TestRequestText(t *testing.T) {
 		return
 	}
 
+	completeCnt := 0
+
 	subscription := NewSubscription()
 	observable.Subscribe <- subscription
-	select {
-	case event := <-subscription.Next:
-		log.Println(event)
-		break
-	case err := <-subscription.Error:
-		t.Fatalf("Error %v", err)
-		return
-	case <-subscription.Complete:
-		log.Println("complete")
-		return
+loop:
+	for {
+
+		select {
+		case event := <-subscription.Next:
+			data := ToString(event, "")
+			if len(data) < 1 {
+				t.Fatalf("Next invalid length for %v", data)
+			}
+			break
+		case err := <-subscription.Error:
+			t.Fatalf("Error %v", err)
+			return
+		case <-subscription.Complete:
+			completeCnt++
+			break loop
+		}
+	}
+
+	if completeCnt != 1 {
+		t.Fatalf("Expected complete count of %v but got %v", 1, completeCnt)
 	}
 }
 
@@ -39,25 +52,39 @@ func TestRequestLine(t *testing.T) {
 		return
 	}
 
+	completeCnt := 0
+	lines := []string{}
+
 	subscription := NewSubscription()
 	observable.Subscribe <- subscription
+loop:
 	for {
 		select {
 		case event := <-subscription.Next:
 			actual++
-			log.Println(event)
+			data := ToByteArray(event, nil)
+			if len(data) < 1 {
+				t.Fatalf("Next invalid length for data %v", data)
+			}
+			lines = append(lines, string(data))
 			break
 		case err := <-subscription.Error:
 			t.Fatalf("Error %v", err)
-			return
+			break loop
 		case <-subscription.Complete:
-			if actual != expect {
-				t.Fatalf("Expected %v lines got %v", expect, actual)
-				return
-			}
-			log.Println("complete")
-			return
+			completeCnt++
+			break loop
 		}
+	}
+
+	if completeCnt != 1 {
+		t.Fatalf("Expected complete count of %v but got %v", 1, completeCnt)
+	}
+
+	if actual != expect {
+		t.Fatalf("xExpected %v lines got %v", expect, actual)
+		t.Log(lines)
+		return
 	}
 }
 func TestRequestJSON(t *testing.T) {
@@ -69,18 +96,30 @@ func TestRequestJSON(t *testing.T) {
 		return
 	}
 
+	completeCnt := 0
+
 	subscription := NewSubscription()
 	observable.Subscribe <- subscription
-	select {
-	case event := <-subscription.Next:
-		log.Println(event)
-		break
-	case err := <-subscription.Error:
-		t.Fatalf("Error %v", err)
-		return
-	case <-subscription.Complete:
-		log.Println("complete")
-		return
+loop:
+	for {
+		select {
+		case event := <-subscription.Next:
+			data := ToStringMap(event, nil)
+			if len(data) < 1 {
+				t.Fatalf("Next invalid length for %v", data)
+			}
+			break
+		case err := <-subscription.Error:
+			t.Fatalf("Error %v", err)
+			return
+		case <-subscription.Complete:
+			completeCnt++
+			break loop
+		}
+	}
+
+	if completeCnt != 1 {
+		t.Fatalf("Expected complete count of %v but got %v", 1, completeCnt)
 	}
 }
 
@@ -93,21 +132,31 @@ func TestRequestSSE(t *testing.T) {
 		return
 	}
 
+	completeCnt := 0
+
 	subscription := NewSubscription()
+	subscription.Take(1)
 	observable.Subscribe <- subscription
-	select {
-	case event := <-subscription.Next:
-		data := ToByteArrayArray(event, nil)
-		if len(data) < 3 {
-			t.Fatalf("Expected min 3 lines, but received %v", len(data))
+loop:
+	for {
+		select {
+		case event := <-subscription.Next:
+			data := ToByteArrayArray(event, nil)
+			if len(data) < 3 {
+				t.Fatalf("Expected min 3 lines, but received %v", len(data))
+				return
+			}
+			break
+		case err := <-subscription.Error:
+			t.Fatalf("Error %v", err)
 			return
+		case <-subscription.Complete:
+			completeCnt++
+			break loop
 		}
-		break
-	case err := <-subscription.Error:
-		t.Fatalf("Error %v", err)
-		return
-	case <-subscription.Complete:
-		log.Println("complete")
-		return
+	}
+
+	if completeCnt != 1 {
+		t.Fatalf("Expected complete count of %v but got %v", 1, completeCnt)
 	}
 }

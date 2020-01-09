@@ -3,17 +3,21 @@ package main
 import (
 	"fmt"
 	"rx"
-	"time"
 	"sync"
+	"time"
 )
 
 func demoInterval(subscription *rx.Subscription) *rx.Observable {
-	return rx.NewInterval(200)
+	interval := rx.NewInterval(200)
+	interval.UID = "demoInterval"
+	return interval
 }
 
 func demoSubject(subscription *rx.Subscription) *rx.Observable {
 	interval := rx.NewInterval(200)
+	interval.UID = "demoSubjectInterval"
 	observable := rx.NewSubject()
+	observable.UID = "demoSubjectObservable"
 	interval.Pipe(observable)
 	observable.Subscribe <- subscription
 	observable.Next <- 99
@@ -26,6 +30,8 @@ func demoBehavior(subscription *rx.Subscription) *rx.Observable {
 
 func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
 	observable := rx.NewReplaySubject(count)
+	observable.UID = "demoReplayObservable"
+
 	observable.Next <- 11
 	observable.Next <- 22
 	observable.Next <- 33
@@ -35,14 +41,13 @@ func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
 	observable.Next <- 77
 	observable.Next <- 88
 	observable.Next <- 99
-	// we get here too quickly, so yield
-	observable.Delay(1)
 	return observable
 }
 
 func demoRetry(subscription *rx.Subscription, closeCh chan bool) *rx.Observable {
 	rxhttp := rx.NewRequest(0)
 	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
+	observable.UID = "demoRetryObservable"
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -57,8 +62,10 @@ func demoRetry(subscription *rx.Subscription, closeCh chan bool) *rx.Observable 
 }
 
 func main() {
+	rx.Config(false)
 	closeCh := make(chan bool)
 	subscription := rx.NewSubscription()
+	subscription.UID = "demoSubscription"
 	subscription.Take(10)
 
 	// observable := demoInterval(subscription)
@@ -76,6 +83,7 @@ func main() {
 	go func() {
 		wg.Done()
 		subscription.Default(func(event interface{}) {
+			fmt.Println(event)
 			if parse {
 				v := rx.ToInt(event, -1)
 				if v == 99 || v == -1 {

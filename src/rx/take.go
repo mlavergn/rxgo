@@ -1,12 +1,15 @@
 package rx
 
+import "sync"
+
 // Take export
 func (id *Subscription) Take(count int) *Subscription {
 	log.Println(id.UID, "Observable.Take")
 
 	counter := count
-	id.take = func() bool {
+	id.takeFn = func() bool {
 		counter--
+		dlog.Println(id.UID, "Observable.Take state", (counter > 0), counter)
 		return (counter > 0)
 	}
 
@@ -17,7 +20,7 @@ func (id *Subscription) Take(count int) *Subscription {
 func (id *Subscription) TakeWhile(cond func() bool) *Subscription {
 	log.Println(id.UID, "Observable.TakeWhile")
 
-	id.take = cond
+	id.takeFn = cond
 
 	return id
 }
@@ -27,8 +30,11 @@ func (id *Subscription) TakeUntil(observable *Observable) *Subscription {
 	log.Println(id.UID, "Observable.TakeUntil")
 
 	watcher := NewSubscription()
-	observable.Subscribe <- watcher
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	go func() {
+		wg.Done()
 		defer id.complete()
 		select {
 		case <-watcher.Next:
@@ -39,6 +45,9 @@ func (id *Subscription) TakeUntil(observable *Observable) *Subscription {
 			return
 		}
 	}()
+
+	wg.Wait()
+	observable.Subscribe <- watcher
 
 	return id
 }
