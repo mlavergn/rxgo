@@ -7,7 +7,46 @@ ReactiveX inspired lightweight Go channel wrapper
 
 ## Note
 
-If you're looking for the full feature set of ReactiveX, it won't be found here. There are existing complete ReactiveX Go implementations that provide that functionality in a manner far more familiar to exiting ReactiveX programmers.
+If you're looking for the full feature set of ReactiveX, it won't be found here. There are existing complete ReactiveX Go implementations that provide that functionality in the style familiar to ReactiveX programmers.
+
+## Usage
+
+Setup the go.mod file as follows:
+
+```text
+vi go.mod:
++ require github.com/mlavergn/rxgo v0.20.0
+```
+
+Use via import as 'rx':
+
+```golang
+package main
+
+import "github.com/mlavergn/rxgo/src/rx"
+
+func main() {
+	observable := rx.NewInterval(100)
+	subscription := rx.NewSubscription()
+	subscription.Take(10)
+	go func() {
+		for {
+			select {
+			case event := <-subscription.Next:
+				print(event.(int))
+				break
+			case err := <-subscription.Error:
+				print(err)
+				return
+			case <-subscription.Complete:
+				return
+			}
+		}
+	}()
+	observable.Subscribe <- subscription
+	<-observable.Finalize
+}
+```
 
 ## Background
 
