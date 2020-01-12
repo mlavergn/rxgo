@@ -1,2 +1,2 @@
-module github.com/mlavergn/rxjs
+module github.com/mlavergn/rxgo/src/rx
 go 1.13
