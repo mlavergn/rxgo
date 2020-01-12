@@ -59,6 +59,6 @@ github:
 	open "https://github.com/mlavergn/rxgo"
 
 release:
-	zip rxgo.zip .
-	hub release create -m "${VERSION} - rxgo" -a rxgo.zip -t master "${VERSION}"
+	zip -r rxgo.zip LICENSE README.md Makefile cmd src
+	hub release create -m "${VERSION} - RxGo" -a rxgo.zip -t master "${VERSION}"
 	open "https://github.com/mlavergn/rxgo/releases"
