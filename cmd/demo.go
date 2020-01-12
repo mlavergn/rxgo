@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"rx"
+	"github.com/mlavergn/rxgo/src/rx"
 	"sync"
 	"time"
 )

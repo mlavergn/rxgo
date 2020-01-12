@@ -8,57 +8,55 @@
 
 .PHONY: test
 
-VERSION := 0.18.0
-
-GOPATH = "${PWD}"
+VERSION := 0.20.0
 
 ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rx/rx.go
 
 lint:
-	GOPATH=${GOPATH} ~/go/bin/golint ./src/...
+	golint ./src/...
 
 fmt:
-	GOPATH=${GOPATH} go fmt rx ./src/...
+	go fmt ./src/...
 
 vet:
-	GOPATH=${GOPATH} go vet rx ./src/...
+	go vet ./src/...
 
 # PROFILE = -blockprofile
 # PROFILE = -cpuprofile
 PROFILE = -memprofile
 profile:
 	-rm -f rx.prof rx.test
-	-GOPATH=${GOPATH} go test ${PROFILE}=rx.prof ./src/...
-	GOPATH=${GOPATH} go tool pprof rx.prof
+	-go test ${PROFILE}=rx.prof ./src/...
+	go tool pprof rx.prof
 
 build:
-	GOPATH=${GOPATH} go build -v ./src/...
+	go build -v ./src/...
 
 clean:
-	GOPATH=${GOPATH} go clean
+	go clean ...
 
 demo: build
-	GOPATH=${GOPATH} go run cmd/demo.go
+	go run cmd/demo.go
 
 race:
-	GOPATH=${GOPATH} go build -race ./src/...
+	go build -race ./src/...
 
 test: build
-	GOPATH=${GOPATH} go test -v -count=${COUNT} ./src/...
+	go test -v -count=${COUNT} ./src/...
 
 TEST ?= TestMerge
 COUNT ?= 1
 testx: build
-	GOPATH=${GOPATH} go test -v -count=${COUNT} ./src/... -run ${TEST}
+	go test -v -count=${COUNT} ./src/... -run ${TEST}
 
 bench: build
-	GOPATH=${GOPATH} go test -bench=. -v ./src/...
+	go test -bench=. -v ./src/...
 
 github:
 	open "https://github.com/mlavergn/rxgo"
 
 release:
 	zip -r rxgo.zip LICENSE README.md Makefile cmd src
-	hub release create -m "${VERSION} - RxGo" -a rxgo.zip -t master "${VERSION}"
+	hub release create -m "${VERSION} - RxGo" -a rxgo.zip -t master "v${VERSION}"
 	open "https://github.com/mlavergn/rxgo/releases"
