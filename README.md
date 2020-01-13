@@ -33,10 +33,10 @@ func main() {
 		for {
 			select {
 			case event := <-subscription.Next:
-				print(event.(int))
+				println(event.(int))
 				break
 			case err := <-subscription.Error:
-				print(err)
+				println(err)
 				return
 			case <-subscription.Complete:
 				return
@@ -47,6 +47,8 @@ func main() {
 	<-observable.Finalize
 }
 ```
+
+[Playground](https://play.golang.org/p/QNZPDoQAq1j)
 
 ## Background
 
