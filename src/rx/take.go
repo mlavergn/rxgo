@@ -52,8 +52,8 @@ func (id *Subscription) TakeUntil(observable *Observable) *Subscription {
 	return id
 }
 
-// TakeUntilCh export
-func (id *Subscription) TakeUntilCh(channel chan interface{}) *Subscription {
+// TakeUntilClose export
+func (id *Subscription) TakeUntilClose(close CloseCh) *Subscription {
 	log.Println(id.UID, "Observable.TakeUntilCh")
 
 	var wg sync.WaitGroup
@@ -62,10 +62,22 @@ func (id *Subscription) TakeUntilCh(channel chan interface{}) *Subscription {
 	go func() {
 		wg.Done()
 		defer id.complete()
-		<-channel
+		<-close
 	}()
 
 	wg.Wait()
 
 	return id
+}
+
+//
+// TakeUntil(close) is a common pattern, this basic channel based close keeps use consistent
+//
+
+// CloseCh type
+type CloseCh chan bool
+
+// NewCloseCh export
+func NewCloseCh() CloseCh {
+	return make(chan bool, 1)
 }
