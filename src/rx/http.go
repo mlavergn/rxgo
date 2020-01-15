@@ -102,7 +102,7 @@ func (id *Request) httpSubject(url string, mime string, data []byte, delimiter b
 				}
 				subject.Next <- data
 				dlog.Println(subject.UID, "httpSubject.Complete via ReadAll")
-				subject.yield()
+				subject.Yield()
 				subject.Complete <- true
 				return
 			}
@@ -120,7 +120,7 @@ func (id *Request) httpSubject(url string, mime string, data []byte, delimiter b
 					contentLength -= chunkLength
 					if contentLength <= 0 {
 						dlog.Println(subject.UID, "httpSubject.Complete via ContentLength")
-						subject.yield()
+						subject.Yield()
 						subject.Complete <- true
 						return
 					}
@@ -129,7 +129,7 @@ func (id *Request) httpSubject(url string, mime string, data []byte, delimiter b
 			// end of read
 			if err == io.EOF {
 				dlog.Println(subject.UID, "httpSubject.Complete via EOF")
-				subject.yield()
+				subject.Yield()
 				subject.Complete <- true
 				return
 			}

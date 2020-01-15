@@ -72,7 +72,7 @@ func NewObservable() *Observable {
 				}
 			}
 			id.Finalize <- true
-			id.yield()
+			id.Yield()
 			close(id.Finalize)
 			id.complete()
 			close(id.Connect)
@@ -248,8 +248,10 @@ func (id *Observable) onResubscribe(err error) bool {
 	return false
 }
 
-// yield allows channel writes to flush
-func (id *Observable) yield() *Observable {
+// Yield staggers sending to a blocked select in order to avoid
+// situations where multiple-cases can proceed causing the select
+// to pseudo-random rather that FIFO across the channels
+func (id *Observable) Yield() *Observable {
 	<-time.After(1 * time.Millisecond)
 	return id
 }

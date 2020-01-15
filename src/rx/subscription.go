@@ -72,7 +72,7 @@ func NewSubscription() *Subscription {
 					dlog.Println(id.UID, "Take complete")
 					if id.observable != nil {
 						id.observable.Unsubscribe <- id
-						id.observable.yield()
+						id.observable.Yield()
 					}
 					id.complete()
 				}

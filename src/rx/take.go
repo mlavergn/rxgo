@@ -51,3 +51,21 @@ func (id *Subscription) TakeUntil(observable *Observable) *Subscription {
 
 	return id
 }
+
+// TakeUntilCh export
+func (id *Subscription) TakeUntilCh(channel chan interface{}) *Subscription {
+	log.Println(id.UID, "Observable.TakeUntilCh")
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		wg.Done()
+		defer id.complete()
+		<-channel
+	}()
+
+	wg.Wait()
+
+	return id
+}
