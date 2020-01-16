@@ -45,7 +45,7 @@ func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
 }
 
 func demoRetry(subscription *rx.Subscription, closeCh chan bool) *rx.Observable {
-	rxhttp := rx.NewRequest(0)
+	rxhttp := rx.NewHTTPRequest(0)
 	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
 	observable.UID = "demoRetryObservable"
 	if err != nil {

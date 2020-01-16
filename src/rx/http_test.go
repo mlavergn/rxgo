@@ -5,7 +5,7 @@ import (
 )
 
 func TestRequestText(t *testing.T) {
-	rxhttp := NewRequest(0)
+	rxhttp := NewHTTPRequest(0)
 	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
@@ -44,7 +44,7 @@ loop:
 func TestRequestLine(t *testing.T) {
 	expect := 11
 	actual := 0
-	rxhttp := NewRequest(0)
+	rxhttp := NewHTTPRequest(0)
 	observable, err := rxhttp.LineSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
@@ -88,7 +88,7 @@ loop:
 	}
 }
 func TestRequestJSON(t *testing.T) {
-	rxhttp := NewRequest(0)
+	rxhttp := NewHTTPRequest(0)
 	observable, err := rxhttp.JSONSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
@@ -124,7 +124,7 @@ loop:
 }
 
 func TestRequestSSE(t *testing.T) {
-	rxhttp := NewRequest(0)
+	rxhttp := NewHTTPRequest(0)
 	observable, err := rxhttp.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
 
 	if err != nil {

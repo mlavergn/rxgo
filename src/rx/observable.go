@@ -230,6 +230,7 @@ func (id *Observable) onUnsubscribe(observer *Subscription) {
 
 // onResubscribe handler
 func (id *Observable) onResubscribe(err error) bool {
+	log.Println(id.UID, "Observable.onResubscribe")
 	if id.resubscribeFn != nil {
 		if err != nil {
 			if id.retryWhenFn != nil && id.retryWhenFn() {
@@ -279,6 +280,14 @@ func (id *Observable) setBehavior(value interface{}) *Observable {
 func (id *Observable) setReplay(bufferSize int) *Observable {
 	log.Println(id.UID, "Observable.Replay")
 	id.buffer = NewCircularBuffer(bufferSize)
+	return id
+}
+
+// Resubscribe modifier
+func (id *Observable) Resubscribe(fn func(*Observable)) *Observable {
+	log.Println(id.UID, "Observable.Resubscriber")
+	id.resubscribeFn = fn
+	fn(id)
 	return id
 }
 
