@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/mlavergn/rxgo/src/rx"
 	"sync"
 	"time"
+
+	"github.com/mlavergn/rxgo/src/rx"
 )
 
 func demoInterval(subscription *rx.Subscription) *rx.Observable {
@@ -44,7 +45,7 @@ func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
 	return observable
 }
 
-func demoRetry(subscription *rx.Subscription, closeCh chan bool) *rx.Observable {
+func demoRetry(subscription *rx.Subscription) *rx.Observable {
 	rxhttp := rx.NewHTTPRequest(0)
 	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
 	if err != nil {
@@ -53,10 +54,25 @@ func demoRetry(subscription *rx.Subscription, closeCh chan bool) *rx.Observable 
 	}
 	observable.UID = "demoRetryObservable"
 	retry := 2
-	observable.RetryWhen(func() bool {
+	observable.RepeatWhen(func() bool {
 		retry--
 		<-time.After(1 * time.Second)
 		return (retry != 0)
+	})
+	return observable
+}
+
+func demoSSE(subscription *rx.Subscription) *rx.Observable {
+	rxhttp := rx.NewHTTPRequest(0)
+	observable, err := rxhttp.SSESubject("http://demo.howopensource.com/sse/stocks.php", nil)
+	if err != nil {
+		fmt.Println("demoSSE", err)
+		return nil
+	}
+	observable.UID = "demoSSE"
+	observable.Map(func(event interface{}) interface{} {
+		result := rx.ToStringMap(event, nil)
+		return result
 	})
 	return observable
 }
@@ -68,13 +84,14 @@ func main() {
 	subscription.UID = "demoSubscription"
 	subscription.Take(10)
 
+	parse := true
 	// observable := demoInterval(subscription)
 	// observable := demoSubject(subscription)
 	// observable := demoBehavior(subscription)
 	observable := demoReplay(subscription, 4)
-	parse := true
 
-	// observable := demoRetry(subscription, closeCh)
+	// observable := demoRetry(subscription)
+	// observable := demoSSE(subscription)
 	// parse = false
 
 	var wg sync.WaitGroup

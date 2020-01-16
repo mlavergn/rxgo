@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -256,6 +257,18 @@ func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, erro
 			lines[i] = line
 			i++
 			return nil
+		}).Map(func(event interface{}) interface{} {
+			if event == nil {
+				return nil
+			}
+			sse := map[string]interface{}{}
+			lines := ToByteArrayArray(event, nil)
+			for i = 0; i < len(lines); i++ {
+				line := string(lines[i])
+				split := strings.Index(line, ":")
+				sse[line[:split]] = strings.TrimSpace(line[split+1:])
+			}
+			return sse
 		})
 		httpSubject.UID = "HTTPRequest.SSESubject:" + observer.UID
 		httpSubject.Pipe(observer)
