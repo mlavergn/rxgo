@@ -33,7 +33,7 @@ type Observable struct {
 	repeatWhenFn  func() bool
 	retryWhenFn   func() bool
 	catchErrorFn  func(error)
-	resubscribeFn func(*Observable)
+	resubscribeFn func(*Observable) error
 }
 
 // NewObservable init
@@ -96,7 +96,7 @@ func NewObservable() *Observable {
 					break
 				}
 				if id.onResubscribe(err) {
-					return
+					break
 				}
 				id.onError(err)
 				return
@@ -107,7 +107,7 @@ func NewObservable() *Observable {
 					break
 				}
 				if id.onResubscribe(nil) {
-					return
+					break
 				}
 				id.onComplete()
 				return
@@ -118,7 +118,7 @@ func NewObservable() *Observable {
 			case observer := <-id.Unsubscribe:
 				dlog.Println(id.UID, "Observable<-Unsubscribe")
 				id.onUnsubscribe(observer)
-				return
+				break
 			}
 		}
 	}()
@@ -231,16 +231,25 @@ func (id *Observable) onUnsubscribe(observer *Subscription) {
 // onResubscribe handler
 func (id *Observable) onResubscribe(err error) bool {
 	log.Println(id.UID, "Observable.onResubscribe")
+	// if all observers are gone, do not resubscribe
+	if len(id.observers) == 0 {
+		log.Println(id.UID, "Observable.onResubscribe no observers remaining")
+		return false
+	}
 	if id.resubscribeFn != nil {
+		dlog.Println(id.UID, "Observable.onResubscribe.resubscribeFn")
+		closed := id.Subscription
+		id.Subscription = NewSubscription()
+		closed.complete()
 		if err != nil {
+			dlog.Println(id.UID, "Observable.onResubscribe.retryWhen")
 			if id.retryWhenFn != nil && id.retryWhenFn() {
-				id.Subscription = NewSubscription()
 				id.resubscribeFn(id)
 				return true
 			}
 		} else {
+			dlog.Println(id.UID, "Observable.onResubscribe.repeatWhen")
 			if id.repeatWhenFn != nil && id.repeatWhenFn() {
-				id.Subscription = NewSubscription()
 				id.resubscribeFn(id)
 				return true
 			}
@@ -284,8 +293,8 @@ func (id *Observable) setReplay(bufferSize int) *Observable {
 }
 
 // Resubscribe modifier
-func (id *Observable) Resubscribe(fn func(*Observable)) *Observable {
-	log.Println(id.UID, "Observable.Resubscriber")
+func (id *Observable) Resubscribe(fn func(*Observable) error) *Observable {
+	log.Println(id.UID, "Observable.Resubscribe", fn != nil)
 	id.resubscribeFn = fn
 	fn(id)
 	return id
@@ -319,18 +328,16 @@ func (id *Observable) CatchError(fn func(error)) *Observable {
 // Merge operator
 func (id *Observable) Merge(merge *Observable) *Observable {
 	log.Println(id.UID, "Observable.Merge")
-
 	merge.Multicast()
 	id.merged[merge] = merge
 	merge.Pipe(id)
-
 	return id
 }
 
 // Delay operator
 // sleep allows the observable to yield to the go channel
 func (id *Observable) Delay(ms time.Duration) *Observable {
-	// log.Println(id.UID, "Observable.Delay")
+	log.Println(id.UID, "Observable.Delay")
 	<-time.After(ms * time.Millisecond)
 	return id
 }
