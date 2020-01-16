@@ -127,25 +127,3 @@ func (id *Subscription) complete() *Subscription {
 
 	return id
 }
-
-// Default provides a default implementation which logs to the default output
-func (id *Subscription) Default(handler func(event interface{}), closeCh chan bool) *Subscription {
-	log.Println(id.UID, "Subscription.Default")
-	defer func() { closeCh <- true }()
-	for {
-		select {
-		case event := <-id.Next:
-			log.Println(id.UID, "<-Next", event)
-			if handler != nil {
-				handler(event)
-			}
-			break
-		case err := <-id.Error:
-			log.Println(id.UID, "<-Error", err)
-			return id
-		case <-id.Complete:
-			log.Println(id.UID, "<-Complete")
-			return id
-		}
-	}
-}

@@ -91,6 +91,7 @@ func NewObservable() *Observable {
 			case err := <-id.Error:
 				dlog.Println(id.UID, "Observable<-Error")
 				if id.catchErrorFn != nil {
+					log.Println(id.UID, "Observable<-Error blocked by catchError")
 					id.catchErrorFn(err)
 					id.Complete <- true
 					break
@@ -102,11 +103,12 @@ func NewObservable() *Observable {
 				return
 			case <-id.Complete:
 				dlog.Println(id.UID, "Observable<-Complete")
-				if len(id.merged) != 0 {
-					dlog.Println(id.UID, "Observable<-Unsubscribe error blocked by active merge")
+				if len(id.merged) != 0 && len(id.observers) != 0 {
+					log.Println(id.UID, "Observable<-Complete blocked by active merge")
 					break
 				}
 				if id.onResubscribe(nil) {
+					log.Println(id.UID, "Observable<-Complete blocked by resubscribe")
 					break
 				}
 				id.onComplete()
@@ -223,7 +225,6 @@ func (id *Observable) onUnsubscribe(observer *Subscription) {
 	delete(id.observers, observer)
 	observer.complete()
 	if len(id.observers) == 0 {
-		dlog.Println(id.UID, "Observable.Subscription->Complete")
 		id.Subscription.Complete <- true
 	}
 }

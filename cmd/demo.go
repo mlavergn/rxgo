@@ -47,11 +47,11 @@ func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
 func demoRetry(subscription *rx.Subscription, closeCh chan bool) *rx.Observable {
 	rxhttp := rx.NewHTTPRequest(0)
 	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
-	observable.UID = "demoRetryObservable"
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("demoRetry", err)
 		return nil
 	}
+	observable.UID = "demoRetryObservable"
 	retry := 2
 	observable.RetryWhen(func() bool {
 		retry--
@@ -82,20 +82,25 @@ func main() {
 
 	go func() {
 		wg.Done()
-		subscription.Default(func(event interface{}) {
-			fmt.Println(event)
-			if parse {
-				v := rx.ToInt(event, -1)
-				if v == 99 || v == -1 {
-					observable.Unsubscribe <- subscription
+		for {
+			select {
+			case event := <-subscription.Next:
+				fmt.Println(subscription.UID, event)
+				if parse {
+					v := rx.ToInt(event, -1)
+					if v == 99 || v == -1 {
+						fmt.Println("Done")
+						observable.Unsubscribe <- subscription
+						subscription.Complete <- true
+					}
 				}
 			}
-		}, closeCh)
+		}
 	}()
 
 	wg.Wait()
 	observable.Subscribe <- subscription
 
-	<-closeCh
+	<-observable.Finalize
 	close(closeCh)
 }
