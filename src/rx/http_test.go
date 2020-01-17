@@ -141,7 +141,7 @@ loop:
 	for {
 		select {
 		case event := <-subscription.Next:
-			data := ToByteArrayArray(event, nil)
+			data := ToStringMap(event, nil)
 			if len(data) < 3 {
 				t.Fatalf("Expected min 3 lines, but received %v", len(data))
 				return

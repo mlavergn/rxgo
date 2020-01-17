@@ -78,7 +78,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 	go func() {
 		wg.Done()
 		// wait for connect
-		<-subject.Connect
+		<-subject.connect
 
 		// perform the request
 		resp, err := id.client.Do(req)

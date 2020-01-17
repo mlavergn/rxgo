@@ -21,7 +21,7 @@ func NewInterval(msec int) *Observable {
 		}()
 
 		// wait for connect
-		<-id.Connect
+		<-id.connect
 
 		i := 0
 		for {
@@ -51,7 +51,7 @@ func NewFrom(values []interface{}) *Observable {
 	go func() {
 		wg.Done()
 		// wait for connect
-		<-id.Connect
+		<-id.connect
 
 		for value := range values {
 			id.Next <- value

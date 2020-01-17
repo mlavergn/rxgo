@@ -35,13 +35,15 @@ func TestMerge(t *testing.T) {
 
 	subject := NewSubject()
 	subject.UID = "testSubject"
+	subject.Publish()
 	subject.Merge(intervalA)
 	subject.Merge(intervalB)
 	subject.Merge(intervalC)
 	subject.Merge(intervalD)
+	subject.Connect()
 
-	if len(subject.merged) != 4 {
-		t.Fatalf("Expected merge count of %v but got %v", 4, len(subject.merged))
+	if len(subject.merges) != 4 {
+		t.Fatalf("Expected merge count of %v but got %v", 4, len(subject.merges))
 	}
 
 	subject.Subscribe <- subscription
@@ -73,8 +75,8 @@ loop:
 		t.Fatalf("Expected observer count of %v but got %v", 0, len(subject.observers))
 	}
 
-	if len(subject.merged) != 0 {
-		t.Fatalf("Expected merge count of %v but got %v", 0, len(subject.merged))
+	if len(subject.merges) != 0 {
+		t.Fatalf("Expected merge count of %v but got %v", 0, len(subject.merges))
 	}
 
 	if nextCnt != events {

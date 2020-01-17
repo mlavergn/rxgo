@@ -21,13 +21,15 @@ type operator struct {
 type Observable struct {
 	*Subscription
 	observers     map[*Subscription]*Subscription
-	Connect       chan bool
-	shared        bool
+	publish       bool
+	connect       chan bool
+	connecters    map[*Subscription]*Subscription
+	share         bool
 	multicast     bool
 	Subscribe     chan *Subscription
 	Unsubscribe   chan *Subscription
 	Finalize      chan bool
-	merged        map[*Observable]*Observable
+	merges        map[*Observable]*Observable
 	buffer        *CircularBuffer
 	operators     []operator
 	repeatWhenFn  func() bool
@@ -42,13 +44,15 @@ func NewObservable() *Observable {
 	id := &Observable{
 		Subscription:  NewSubscription(),
 		observers:     map[*Subscription]*Subscription{},
-		Connect:       make(chan bool, 1),
-		shared:        false,
+		publish:       false,
+		connect:       make(chan bool, 1),
+		connecters:    map[*Subscription]*Subscription{},
+		share:         false,
 		multicast:     false,
 		Subscribe:     make(chan *Subscription, 1),
 		Unsubscribe:   make(chan *Subscription, 1),
 		Finalize:      make(chan bool, 1),
-		merged:        map[*Observable]*Observable{},
+		merges:        map[*Observable]*Observable{},
 		buffer:        nil,
 		operators:     []operator{},
 		repeatWhenFn:  nil,
@@ -64,18 +68,11 @@ func NewObservable() *Observable {
 	go func() {
 		defer func() {
 			log.Println(id.UID, "Observable.Finalize")
-			// remove and unsubscribe from all merged
-			if len(id.merged) != 0 {
-				for merge := range id.merged {
-					delete(id.merged, merge)
-					merge.Unsubscribe <- id.Subscription
-				}
-			}
 			id.Finalize <- true
 			id.Yield()
 			close(id.Finalize)
 			id.complete()
-			close(id.Connect)
+			close(id.connect)
 			close(id.Subscribe)
 			close(id.Unsubscribe)
 			id.observers = nil
@@ -90,20 +87,20 @@ func NewObservable() *Observable {
 				break
 			case err := <-id.Error:
 				dlog.Println(id.UID, "Observable<-Error")
+				if id.onResubscribe(err) {
+					log.Println(id.UID, "Observable<-Error blocked by resubscribe")
+					break
+				}
 				if id.catchErrorFn != nil {
 					log.Println(id.UID, "Observable<-Error blocked by catchError")
 					id.catchErrorFn(err)
-					id.Complete <- true
-					break
-				}
-				if id.onResubscribe(err) {
 					break
 				}
 				id.onError(err)
 				return
 			case <-id.Complete:
 				dlog.Println(id.UID, "Observable<-Complete")
-				if len(id.merged) != 0 && len(id.observers) != 0 {
+				if len(id.merges) != 0 && (len(id.observers) != 0 || id.share) {
 					log.Println(id.UID, "Observable<-Complete blocked by active merge")
 					break
 				}
@@ -115,6 +112,12 @@ func NewObservable() *Observable {
 				return
 			case observer := <-id.Subscribe:
 				dlog.Println(id.UID, "Observable<-Subscribe")
+
+				if id.publish {
+					id.connecters[observer] = observer
+					break
+				}
+
 				id.onSubscribe(observer)
 				break
 			case observer := <-id.Unsubscribe:
@@ -172,6 +175,14 @@ func (id *Observable) onError(err error) {
 		delete(id.observers, observer)
 		observer.error(err)
 	}
+
+	// remove and unsubscribe from all merged
+	if len(id.merges) != 0 {
+		for merge := range id.merges {
+			delete(id.merges, merge)
+			merge.Unsubscribe <- id.Subscription
+		}
+	}
 }
 
 // onComplete handler
@@ -180,6 +191,14 @@ func (id *Observable) onComplete() {
 	for _, observer := range id.observers {
 		delete(id.observers, observer)
 		observer.complete()
+	}
+
+	// remove and unsubscribe from all merged
+	if len(id.merges) != 0 {
+		for merge := range id.merges {
+			delete(id.merges, merge)
+			merge.Unsubscribe <- id.Subscription
+		}
 	}
 }
 
@@ -195,14 +214,6 @@ func (id *Observable) onSubscribe(observer *Subscription) {
 	id.observers[observer] = observer
 	observer.observable = id
 
-	// connect on Subscribe
-	select {
-	case id.Connect <- true:
-		break
-	default:
-		break
-	}
-
 	// replay for the new sub
 	if id.buffer != nil {
 		log.Println(id.UID, "Observable.onSubscribe replay")
@@ -216,6 +227,16 @@ func (id *Observable) onSubscribe(observer *Subscription) {
 			observer.next(v)
 		}
 	}
+
+	// if no publish hold, send Connect
+	if id.publish == false {
+		select {
+		case id.connect <- true:
+			break
+		default:
+			break
+		}
+	}
 }
 
 // onUnsubscribe handler
@@ -224,7 +245,7 @@ func (id *Observable) onUnsubscribe(observer *Subscription) {
 	observer.observable = nil
 	delete(id.observers, observer)
 	observer.complete()
-	if len(id.observers) == 0 {
+	if len(id.observers) == 0 && !id.share {
 		id.Subscription.Complete <- true
 	}
 }
@@ -233,7 +254,7 @@ func (id *Observable) onUnsubscribe(observer *Subscription) {
 func (id *Observable) onResubscribe(err error) bool {
 	log.Println(id.UID, "Observable.onResubscribe")
 	// if all observers are gone, do not resubscribe
-	if len(id.observers) == 0 {
+	if len(id.observers) == 0 && !id.share {
 		log.Println(id.UID, "Observable.onResubscribe no observers remaining")
 		return false
 	}
@@ -270,6 +291,34 @@ func (id *Observable) Yield() *Observable {
 //
 // Modifiers
 //
+
+// Share modifier
+func (id *Observable) Share() *Observable {
+	id.share = true
+	return id
+}
+
+// Publish modifier
+func (id *Observable) Publish() *Observable {
+	id.publish = true
+	return id
+}
+
+// Connect modifier
+func (id *Observable) Connect() *Observable {
+	for o := range id.connecters {
+		id.onSubscribe(o)
+	}
+	id.publish = false
+	select {
+	case id.connect <- true:
+		break
+	default:
+		break
+	}
+
+	return id
+}
 
 // Multicast modifier
 func (id *Observable) Multicast() *Observable {
@@ -330,7 +379,7 @@ func (id *Observable) CatchError(fn func(error)) *Observable {
 func (id *Observable) Merge(merge *Observable) *Observable {
 	log.Println(id.UID, "Observable.Merge")
 	merge.Multicast()
-	id.merged[merge] = merge
+	id.merges[merge] = merge
 	merge.Pipe(id)
 	return id
 }
