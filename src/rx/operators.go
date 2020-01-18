@@ -8,6 +8,7 @@ func (id *Observable) Pipe(pipe *Observable) *Observable {
 }
 
 // Filter export
+// Emit values that PASS (return true) for the filter condition
 func (id *Observable) Filter(fn func(interface{}) bool) *Observable {
 	log.Println(id.UID, "Observable.Filter")
 	id.operators = append(id.operators, operator{operatorFilter, fn})

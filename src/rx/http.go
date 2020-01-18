@@ -70,7 +70,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 	req.Header.Add("Accept", mime)
 
 	subject := NewSubject()
-	subject.UID = "HTTPRequest.httpSubject" + subject.UID
+	subject.UID = "httpSubject." + subject.UID
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -84,6 +84,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 		resp, err := id.client.Do(req)
 		if err != nil {
 			subject.Error <- err
+			return
 		}
 
 		// log.Println(resp.Header)
@@ -98,19 +99,19 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 			if delimiter == 0 {
 				data, err := ioutil.ReadAll(reader)
 				if err != nil {
-					dlog.Println(subject.UID, "HTTPRequest.httpSubject.Error", err)
+					log.Println(subject.UID, "HTTPRequest.httpSubject.Error", err)
 					subject.Error <- err
 					return
 				}
 				subject.Next <- data
-				dlog.Println(subject.UID, "HTTPRequest.httpSubject.Complete via ReadAll")
+				log.Println(subject.UID, "HTTPRequest.httpSubject.Complete via ReadAll")
 				subject.Yield()
 				subject.Complete <- true
 				return
 			}
 			chunk, err := reader.ReadBytes(delimiter)
 			if err != nil && err != io.EOF {
-				dlog.Println(subject.UID, "HTTPRequest.httpSubject.Error", err)
+				log.Println(subject.UID, "HTTPRequest.httpSubject.Error", err)
 				subject.Error <- err
 				return
 			}
@@ -148,13 +149,14 @@ func (id *HTTPRequest) ByteSubject(url string, contentType string, payload []byt
 	subject := NewSubject()
 
 	subject.Resubscribe(func(observer *Observable) error {
-		log.Println("HTTPRequest.ByteSubject.Resubscribe")
+		log.Println(observer.UID, "HTTPRequest.ByteSubject.Resubscribe")
 		httpSubject, err := id.httpSubject(url, contentType, payload, 0)
 		if err != nil {
 			return err
 		}
-		httpSubject.UID = "HTTPRequest.ByteSubject:" + observer.UID
+		httpSubject.UID = "ByteSubject." + observer.UID
 		httpSubject.Pipe(observer)
+		dlog.Println(httpSubject.UID, "HTTPRequest.ByteSubject.Subscribed")
 		return nil
 	})
 
@@ -167,7 +169,7 @@ func (id *HTTPRequest) TextSubject(url string, payload []byte) (*Observable, err
 	subject := NewSubject()
 
 	subject.Resubscribe(func(observer *Observable) error {
-		log.Println("HTTPRequest.TextSubject.Resubscribe")
+		log.Println(observer.UID, "HTTPRequest.TextSubject.Resubscribe")
 		httpSubject, err := id.httpSubject(url, "text/plain", payload, 0)
 		if err != nil {
 			return err
@@ -175,8 +177,9 @@ func (id *HTTPRequest) TextSubject(url string, payload []byte) (*Observable, err
 		httpSubject.Map(func(event interface{}) interface{} {
 			return ToByteString(event, "")
 		})
-		httpSubject.UID = "HTTPRequest.TextSubject:" + observer.UID
+		httpSubject.UID = "TextSubject." + observer.UID
 		httpSubject.Pipe(observer)
+		dlog.Println(httpSubject.UID, "HTTPRequest.TextSubject.Subscribed")
 		return nil
 	})
 
@@ -189,13 +192,14 @@ func (id *HTTPRequest) LineSubject(url string, payload []byte) (*Observable, err
 	subject := NewSubject()
 
 	subject.Resubscribe(func(observer *Observable) error {
-		log.Println("HTTPRequest.LineSubject.Resubscribe")
+		log.Println(observer.UID, "HTTPRequest.LineSubject.Resubscribe")
 		httpSubject, err := id.httpSubject(url, "text/plain", payload, byte('\n'))
 		if err != nil {
 			return err
 		}
-		httpSubject.UID = "HTTPRequest.LineSubject:" + observer.UID
+		httpSubject.UID = "LineSubject." + observer.UID
 		httpSubject.Pipe(observer)
+		dlog.Println(httpSubject.UID, "HTTPRequest.LineSubject.Subscribed")
 		return nil
 	})
 
@@ -208,7 +212,7 @@ func (id *HTTPRequest) JSONSubject(url string, payload []byte) (*Observable, err
 	subject := NewSubject()
 
 	subject.Resubscribe(func(observer *Observable) error {
-		log.Println("HTTPRequest.JSONSubject.Resubscribe")
+		log.Println(observer.UID, "HTTPRequest.JSONSubject.Resubscribe")
 		httpSubject, err := id.httpSubject(url, "application/json", payload, 0)
 		if err != nil {
 			return err
@@ -223,8 +227,9 @@ func (id *HTTPRequest) JSONSubject(url string, payload []byte) (*Observable, err
 			}
 			return result
 		})
-		httpSubject.UID = "HTTPRequest.JSONSubject:" + observer.UID
+		httpSubject.UID = "JSONSubject." + observer.UID
 		httpSubject.Pipe(observer)
+		dlog.Println(httpSubject.UID, "HTTPRequest.JSONSubject.Subscribed")
 		return nil
 	})
 
@@ -237,7 +242,7 @@ func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, erro
 	subject := NewSubject()
 
 	subject.Resubscribe(func(observer *Observable) error {
-		log.Println("HTTPRequest.SSESubject.Resubscribe")
+		log.Println(observer.UID, "HTTPRequest.SSESubject.Resubscribe")
 		// assumption, events will never exceed 10 lines
 		lines := [10][]byte{}
 		i := 0
@@ -270,8 +275,9 @@ func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, erro
 			}
 			return sse
 		})
-		httpSubject.UID = "HTTPRequest.SSESubject:" + observer.UID
+		httpSubject.UID = "SSESubject." + observer.UID
 		httpSubject.Pipe(observer)
+		dlog.Println(httpSubject.UID, "HTTPRequest.SSESubject.Subscribed")
 		return nil
 	})
 

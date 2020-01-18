@@ -1,6 +1,7 @@
 package rx
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -142,7 +143,7 @@ func (id *Observable) onNext(event interface{}) {
 		switch op.op {
 		case operatorFilter:
 			filterFn := op.fn.(func(interface{}) bool)
-			if !filterFn(event) {
+			if filterFn(event) != true {
 				return
 			}
 			break
@@ -374,6 +375,20 @@ func (id *Observable) CatchError(fn func(error)) *Observable {
 //
 // Operators
 //
+
+// Distinct operator
+func (id *Observable) Distinct() *Observable {
+	last := ""
+	id.Filter(func(event interface{}) bool {
+		eventStr := fmt.Sprint(event)
+		if eventStr != last {
+			last = eventStr
+			return true
+		}
+		return false
+	})
+	return id
+}
 
 // Merge operator
 func (id *Observable) Merge(merge *Observable) *Observable {

@@ -25,16 +25,16 @@ func TestMerge(t *testing.T) {
 	subscription.UID = "testSubscription"
 
 	intervalA := NewInterval(2)
-	intervalA.UID = "testIntervalA"
+	intervalA.UID = "testIntervalA." + intervalA.UID
 	intervalB := NewInterval(2)
-	intervalB.UID = "testIntervalB"
+	intervalB.UID = "testIntervalB." + intervalB.UID
 	intervalC := NewInterval(2)
-	intervalC.UID = "testIntervalC"
+	intervalC.UID = "testIntervalC." + intervalC.UID
 	intervalD := NewInterval(2)
-	intervalD.UID = "testIntervalD"
+	intervalD.UID = "testIntervalD." + intervalD.UID
 
 	subject := NewSubject()
-	subject.UID = "testSubject"
+	subject.UID = "testSubject." + subject.UID
 	subject.Publish()
 	subject.Merge(intervalA)
 	subject.Merge(intervalB)
