@@ -44,7 +44,7 @@ func NewObservable() *Observable {
 	log.Println("Observable.NewObservable")
 	id := &Observable{
 		Subscription:  NewSubscription(),
-		observers:     map[*Subscription]*Subscription{},
+		observers:     make(map[*Subscription]*Subscription, 1),
 		publish:       false,
 		connect:       make(chan bool, 1),
 		connecters:    map[*Subscription]*Subscription{},
@@ -394,6 +394,7 @@ func (id *Observable) Distinct() *Observable {
 func (id *Observable) Merge(merge *Observable) *Observable {
 	log.Println(id.UID, "Observable.Merge")
 	merge.Multicast()
+	// TODO not thread safe
 	id.merges[merge] = merge
 	merge.Pipe(id)
 	return id

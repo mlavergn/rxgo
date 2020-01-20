@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.28.0
+VERSION := 0.29.0
 
 ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rx/rx.go
@@ -29,6 +29,12 @@ profile:
 	-rm -f rx.prof rx.test
 	-go test ${PROFILE}=rx.prof ./src/...
 	go tool pprof rx.prof
+
+ppcpu:
+	go tool pprof http://localhost/debug/pprof/profile
+
+ppmem:
+	go tool pprof http://localhost/debug/pprof/heap
 
 build:
 	go build -v ./src/...

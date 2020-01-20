@@ -63,7 +63,7 @@ loop:
 		select {
 		case event := <-subscription.Next:
 			actual++
-			data := ToByteArray(event, nil)
+			data := event.([]byte)
 			if len(data) < 1 {
 				t.Fatalf("Next invalid length for data %v", data)
 			}

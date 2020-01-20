@@ -24,7 +24,7 @@ var tlsConfigOnce sync.Once
 var tlsConfig *tls.Config
 
 var httpClient *http.Client
-var httpClientTimeout time.Duration
+var httpClientTimeout = -1 * time.Second
 
 // NewHTTPRequest init
 func NewHTTPRequest(timeout time.Duration) *HTTPRequest {
@@ -109,6 +109,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 		}
 		dlog.Println(subject.UID, "HTTPRequest.httpSubject.ContentLength", contentLength)
 		reader := bufio.NewReader(resp.Body)
+		defer resp.Body.Close()
 
 		for {
 			if delimiter == 0 {
@@ -158,7 +159,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 	return subject, nil
 }
 
-// ByteSubject export
+// ByteSubject HTTP response of Observable<[]byte>
 func (id *HTTPRequest) ByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.ByteSubject")
 	subject := NewSubject()
@@ -178,7 +179,7 @@ func (id *HTTPRequest) ByteSubject(url string, contentType string, payload []byt
 	return subject, nil
 }
 
-// TextSubject export
+// TextSubject HTTP response of Observable<string>
 func (id *HTTPRequest) TextSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.TextSubject")
 	subject := NewSubject()
@@ -190,7 +191,10 @@ func (id *HTTPRequest) TextSubject(url string, payload []byte) (*Observable, err
 			return err
 		}
 		httpSubject.Map(func(event interface{}) interface{} {
-			return ToByteString(event, "")
+			if event == nil {
+				return ""
+			}
+			return string(event.([]byte))
 		})
 		httpSubject.UID = "TextSubject." + observer.UID
 		httpSubject.Pipe(observer)
@@ -201,7 +205,7 @@ func (id *HTTPRequest) TextSubject(url string, payload []byte) (*Observable, err
 	return subject, nil
 }
 
-// LineSubject export
+// LineSubject HTTP response of Observable<[]byte> delimited by newlines
 func (id *HTTPRequest) LineSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.LineSubject")
 	subject := NewSubject()
@@ -233,7 +237,10 @@ func (id *HTTPRequest) JSONSubject(url string, payload []byte) (*Observable, err
 			return err
 		}
 		httpSubject.Map(func(event interface{}) interface{} {
-			data := ToByteArray(event, nil)
+			if event == nil {
+				return nil
+			}
+			data := event.([]byte)
 			var result interface{}
 			err := json.Unmarshal(data, &result)
 			if err != nil {
@@ -259,7 +266,8 @@ func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, erro
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.SSESubject.Resubscribe")
 		// assumption, events will never exceed 10 lines
-		lines := [10][]byte{}
+		lineMax := 10
+		lines := make([][]byte, 10)
 		i := 0
 
 		httpSubject, err := id.httpSubject(url, "text/event-stream", payload, byte('\n'))
@@ -267,8 +275,13 @@ func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, erro
 			return err
 		}
 		httpSubject.Map(func(event interface{}) interface{} {
-			line := ToByteArray(event, nil)
-			if len(line) == 1 || i == 10 {
+			var line []byte
+			if event == nil {
+				line = []byte{}
+			} else {
+				line = event.([]byte)
+			}
+			if len(line) == 1 || i == lineMax {
 				// take a reference to lines
 				buffer := lines[:i]
 				i = 0
@@ -281,14 +294,16 @@ func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, erro
 			if event == nil {
 				return nil
 			}
-			sse := map[string]interface{}{}
-			lines := ToByteArrayArray(event, nil)
+			sse := make(map[string]interface{}, lineMax)
+			lines := event.([][]byte)
 			for i = 0; i < len(lines); i++ {
 				line := string(lines[i])
 				split := strings.Index(line, ":")
 				sse[line[:split]] = strings.TrimSpace(line[split+1:])
 			}
 			return sse
+		}).Filter(func(event interface{}) bool {
+			return event != nil
 		})
 		httpSubject.UID = "SSESubject." + observer.UID
 		httpSubject.Pipe(observer)

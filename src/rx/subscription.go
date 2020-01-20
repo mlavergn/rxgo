@@ -58,33 +58,35 @@ func NewSubscription() *Subscription {
 		hot := true
 		for {
 			dlog.Println(id.UID, "Subscription<-eventChan")
-			event := <-id.eventChan
-			switch {
-			case event.value != nil:
-				dlog.Println(id.UID, "Subscription<-Next")
-				if hot {
-					id.Next <- event.value
-				}
-
-				// Take
-				if id.takeFn != nil && !id.takeFn() {
-					hot = false
-					dlog.Println(id.UID, "Take complete")
-					if id.observable != nil {
-						id.observable.Unsubscribe <- id
-						id.observable.Yield()
+			select {
+			case event := <-id.eventChan:
+				switch {
+				case event.value != nil:
+					dlog.Println(id.UID, "Subscription<-Next")
+					if hot {
+						id.Next <- event.value
 					}
-					id.complete()
+
+					// Take
+					if id.takeFn != nil && !id.takeFn() {
+						hot = false
+						dlog.Println(id.UID, "Take complete")
+						if id.observable != nil {
+							id.observable.Unsubscribe <- id
+							id.observable.Yield()
+						}
+						id.complete()
+					}
+					break
+				case event.err != nil:
+					dlog.Println(id.UID, "Subscription<-Error")
+					id.Error <- event.err
+					return
+				case event.complete == true:
+					dlog.Println(id.UID, "Subscription<-Complete")
+					id.Complete <- true
+					return
 				}
-				break
-			case event.err != nil:
-				dlog.Println(id.UID, "Subscription<-Error")
-				id.Error <- event.err
-				return
-			case event.complete == true:
-				dlog.Println(id.UID, "Subscription<-Complete")
-				id.Complete <- true
-				return
 			}
 		}
 	}()
