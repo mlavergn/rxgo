@@ -20,34 +20,49 @@ type HTTPRequest struct {
 	client *http.Client
 }
 
+var tlsConfigOnce sync.Once
+var tlsConfig *tls.Config
+
+var httpClient *http.Client
+var httpClientTimeout time.Duration
+
 // NewHTTPRequest init
 func NewHTTPRequest(timeout time.Duration) *HTTPRequest {
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
-	}
+	// only need to configure tls.Config once
+	tlsConfigOnce.Do(func() {
+		rootCAs, _ := x509.SystemCertPool()
+		if rootCAs == nil {
+			rootCAs = x509.NewCertPool()
+		}
 
-	// currently based on Linux CA location
-	caCert, err := ioutil.ReadFile("/etc/ssl/ca-bundle.crt")
-	if err == nil {
-		rootCAs.AppendCertsFromPEM(caCert)
-	}
+		// currently based on Linux CA location
+		caCert, err := ioutil.ReadFile("/etc/ssl/ca-bundle.crt")
+		if err == nil {
+			rootCAs.AppendCertsFromPEM(caCert)
+		}
 
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		RootCAs:            rootCAs,
-	}
+		tlsConfig = &tls.Config{
+			InsecureSkipVerify: true,
+			RootCAs:            rootCAs,
+		}
+	})
 
-	httpTransport := &http.Transport{
-		TLSClientConfig: tlsConfig,
-		DialContext: (&net.Dialer{
-			Timeout: timeout,
-		}).DialContext,
-	}
-	return &HTTPRequest{
-		client: &http.Client{
+	// if timeout is unchanged, reuse http.Client
+	if timeout != httpClientTimeout {
+		httpTransport := &http.Transport{
+			TLSClientConfig: tlsConfig,
+			DialContext: (&net.Dialer{
+				Timeout: timeout,
+			}).DialContext,
+		}
+
+		httpClient = &http.Client{
 			Transport: httpTransport,
-		},
+		}
+	}
+
+	return &HTTPRequest{
+		client: httpClient,
 	}
 }
 
