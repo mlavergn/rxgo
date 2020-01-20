@@ -131,12 +131,12 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 				subject.Error <- err
 				return
 			}
-			chunkLength := int64(len(chunk))
+			chunkLength := len(chunk)
 			if chunkLength != 0 {
 				dlog.Println(subject.UID, "HTTPRequest.httpSubject.Next")
 				subject.Next <- chunk
 				if contentLength > 0 {
-					contentLength -= chunkLength
+					contentLength -= int64(chunkLength)
 					if contentLength <= 0 {
 						dlog.Println(subject.UID, "HTTPRequest.httpSubject.Complete via ContentLength")
 						subject.Yield()

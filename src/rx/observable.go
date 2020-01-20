@@ -31,6 +31,7 @@ type Observable struct {
 	Unsubscribe   chan *Subscription
 	Finalize      chan bool
 	merges        map[*Observable]*Observable
+	mergesMutex   sync.RWMutex
 	buffer        *CircularBuffer
 	operators     []operator
 	repeatWhenFn  func() bool
@@ -179,10 +180,12 @@ func (id *Observable) onError(err error) {
 
 	// remove and unsubscribe from all merged
 	if len(id.merges) != 0 {
+		id.mergesMutex.Lock()
 		for merge := range id.merges {
 			delete(id.merges, merge)
 			merge.Unsubscribe <- id.Subscription
 		}
+		id.mergesMutex.Unlock()
 	}
 }
 
@@ -196,10 +199,12 @@ func (id *Observable) onComplete() {
 
 	// remove and unsubscribe from all merged
 	if len(id.merges) != 0 {
+		id.mergesMutex.Lock()
 		for merge := range id.merges {
 			delete(id.merges, merge)
 			merge.Unsubscribe <- id.Subscription
 		}
+		id.mergesMutex.Unlock()
 	}
 }
 
@@ -394,8 +399,9 @@ func (id *Observable) Distinct() *Observable {
 func (id *Observable) Merge(merge *Observable) *Observable {
 	log.Println(id.UID, "Observable.Merge")
 	merge.Multicast()
-	// TODO not thread safe
+	id.mergesMutex.Lock()
 	id.merges[merge] = merge
+	id.mergesMutex.Unlock()
 	merge.Pipe(id)
 	return id
 }
