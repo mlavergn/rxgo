@@ -11,16 +11,16 @@ func TestFilter(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	subscription := NewSubscription()
+	observer := NewObserver()
 	interval := NewInterval(10)
 	interval.Filter(func(value interface{}) bool {
 		return (ToInt(value, -1)%2 == 0)
 	})
-	interval.Take(events).Subscribe <- subscription
+	interval.Take(events).Subscribe <- observer
 loop:
 	for {
 		select {
-		case next := <-subscription.Next:
+		case next := <-observer.Next:
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
 				return
@@ -28,11 +28,11 @@ loop:
 			// t.Log("next", next.(int))
 			nextCnt++
 			break
-		case <-subscription.Error:
+		case <-observer.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop
@@ -57,16 +57,16 @@ func TestMap(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	subscription := NewSubscription()
+	observer := NewObserver()
 	interval := NewInterval(5)
 	interval.Map(func(value interface{}) interface{} {
 		return ToInt(value, 0) * 10
 	})
-	interval.Take(events).Subscribe <- subscription
+	interval.Take(events).Subscribe <- observer
 loop:
 	for {
 		select {
-		case next := <-subscription.Next:
+		case next := <-observer.Next:
 			value := ToInt(next, 0)
 			if next == nil || value%10 != 0 {
 				t.Fatalf("Unexpected next value %v", next)
@@ -75,11 +75,11 @@ loop:
 			// t.Log("next", next.(int))
 			nextCnt++
 			break
-		case <-subscription.Error:
+		case <-observer.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop

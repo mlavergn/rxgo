@@ -20,8 +20,8 @@ func TestMerge(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	subscription := NewSubscription()
-	subscription.UID = "testSubscription"
+	observer := NewObserver()
+	observer.UID = "testSubscription"
 
 	intervalA := NewInterval(2)
 	intervalA.UID = "testIntervalA." + intervalA.UID
@@ -45,11 +45,11 @@ func TestMerge(t *testing.T) {
 		t.Fatalf("Expected merge count of %v but got %v", 4, len(subject.merges))
 	}
 
-	subject.Take(events).Subscribe <- subscription
+	subject.Take(events).Subscribe <- observer
 loop:
 	for {
 		select {
-		case next := <-subscription.Next:
+		case next := <-observer.Next:
 			// t.Log("next", next.(int))
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
@@ -57,11 +57,11 @@ loop:
 			}
 			nextCnt++
 			break
-		case <-subscription.Error:
+		case <-observer.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop

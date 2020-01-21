@@ -1,9 +1,14 @@
 package rx
 
+import (
+	"fmt"
+	"time"
+)
+
 // Pipe forwards events to the observer
 func (id *Observable) Pipe(observer *Observable) *Observable {
 	log.Println(id.UID, "Observable.Pipe")
-	id.Subscribe <- observer.Subscription
+	id.Subscribe <- observer.Observer
 	return id
 }
 
@@ -19,5 +24,27 @@ func (id *Observable) Filter(fn func(interface{}) bool) *Observable {
 func (id *Observable) Map(fn func(interface{}) interface{}) *Observable {
 	log.Println(id.UID, "Observable.Map")
 	id.operators = append(id.operators, operator{operatorMap, fn})
+	return id
+}
+
+// Distinct operator
+func (id *Observable) Distinct() *Observable {
+	last := ""
+	id.Filter(func(event interface{}) bool {
+		eventStr := fmt.Sprint(event)
+		if eventStr != last {
+			last = eventStr
+			return true
+		}
+		return false
+	})
+	return id
+}
+
+// Delay operator
+// sleep allows the observable to yield to the go channel
+func (id *Observable) Delay(ms time.Duration) *Observable {
+	log.Println(id.UID, "Observable.Delay")
+	<-time.After(ms * time.Millisecond)
 	return id
 }

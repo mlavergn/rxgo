@@ -29,7 +29,7 @@ func (id *Observable) TakeWhile(cond func() bool) *Observable {
 func (id *Observable) TakeUntil(observable *Observable) *Observable {
 	log.Println(id.UID, "Observable.TakeUntil")
 
-	watcher := NewSubscription()
+	watcher := NewObserver()
 	var wg sync.WaitGroup
 	wg.Add(1)
 

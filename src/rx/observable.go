@@ -20,15 +20,15 @@ type operator struct {
 
 // Observable type
 type Observable struct {
-	*Subscription
-	observers     map[*Subscription]*Subscription
+	*Observer
+	observers     map[*Observer]*Observer
 	publish       bool
 	connect       chan bool
-	connecters    map[*Subscription]*Subscription
+	connecters    map[*Observer]*Observer
 	share         bool
 	multicast     bool
-	Subscribe     chan *Subscription
-	Unsubscribe   chan *Subscription
+	Subscribe     chan *Observer
+	Unsubscribe   chan *Observer
 	completeOnce  sync.Once
 	Finalize      chan bool
 	merges        map[*Observable]*Observable
@@ -46,15 +46,15 @@ type Observable struct {
 func NewObservable() *Observable {
 	log.Println("Observable.NewObservable")
 	id := &Observable{
-		Subscription:  NewSubscription(),
-		observers:     make(map[*Subscription]*Subscription, 1),
+		Observer:      NewObserver(),
+		observers:     make(map[*Observer]*Observer, 1),
 		publish:       false,
 		connect:       make(chan bool, 1),
-		connecters:    map[*Subscription]*Subscription{},
+		connecters:    map[*Observer]*Observer{},
 		share:         false,
 		multicast:     false,
-		Subscribe:     make(chan *Subscription, 1),
-		Unsubscribe:   make(chan *Subscription, 1),
+		Subscribe:     make(chan *Observer, 1),
+		Unsubscribe:   make(chan *Observer, 1),
 		Finalize:      make(chan bool, 1),
 		merges:        map[*Observable]*Observable{},
 		buffer:        nil,
@@ -194,7 +194,7 @@ func (id *Observable) onError(err error) bool {
 			for merge := range id.merges {
 				delete(id.merges, merge)
 				select {
-				case merge.Unsubscribe <- id.Subscription:
+				case merge.Unsubscribe <- id.Observer:
 				default:
 				}
 			}
@@ -212,7 +212,7 @@ func (id *Observable) onComplete(obs *Observable) bool {
 	// if completion event came from this instance, don't interrupt it
 	if id != obs {
 		if obs != nil {
-			obs.Unsubscribe <- id.Subscription
+			obs.Unsubscribe <- id.Observer
 		}
 		if id.share {
 			fmt.Println(id.UID, "Observable<-Complete blocked by active share")
@@ -243,7 +243,7 @@ func (id *Observable) onComplete(obs *Observable) bool {
 			for merge := range id.merges {
 				delete(id.merges, merge)
 				select {
-				case merge.Unsubscribe <- id.Subscription:
+				case merge.Unsubscribe <- id.Observer:
 				default:
 				}
 			}
@@ -256,7 +256,7 @@ func (id *Observable) onComplete(obs *Observable) bool {
 }
 
 // onSubscribe handler
-func (id *Observable) onSubscribe(observer *Subscription) bool {
+func (id *Observable) onSubscribe(observer *Observer) bool {
 	log.Println(id.UID, "Observable.onSubscribe")
 
 	// if publish wait to fully subscribe
@@ -301,7 +301,7 @@ func (id *Observable) onSubscribe(observer *Subscription) bool {
 }
 
 // onUnsubscribe handler
-func (id *Observable) onUnsubscribe(observer *Subscription) bool {
+func (id *Observable) onUnsubscribe(observer *Observer) bool {
 	log.Println(id.UID, "Observable.onUnsubscribe")
 	delete(id.observers, observer)
 	if len(id.observers) > 0 || id.share {
@@ -320,8 +320,8 @@ func (id *Observable) onResubscribe(err error) bool {
 	}
 	if id.resubscribeFn != nil {
 		dlog.Println(id.UID, "Observable.onResubscribe.resubscribeFn")
-		closed := id.Subscription
-		id.Subscription = NewSubscription()
+		closed := id.Observer
+		id.Observer = NewObserver()
 		closed.complete(id)
 		if err != nil {
 			dlog.Println(id.UID, "Observable.onResubscribe.retryWhen")
@@ -435,20 +435,6 @@ func (id *Observable) CatchError(fn func(error)) *Observable {
 // Operators
 //
 
-// Distinct operator
-func (id *Observable) Distinct() *Observable {
-	last := ""
-	id.Filter(func(event interface{}) bool {
-		eventStr := fmt.Sprint(event)
-		if eventStr != last {
-			last = eventStr
-			return true
-		}
-		return false
-	})
-	return id
-}
-
 // Merge operator
 func (id *Observable) Merge(merge *Observable) *Observable {
 	log.Println(id.UID, "Observable.Merge")
@@ -457,13 +443,5 @@ func (id *Observable) Merge(merge *Observable) *Observable {
 	id.merges[merge] = merge
 	id.mergesMutex.Unlock()
 	merge.Pipe(id)
-	return id
-}
-
-// Delay operator
-// sleep allows the observable to yield to the go channel
-func (id *Observable) Delay(ms time.Duration) *Observable {
-	log.Println(id.UID, "Observable.Delay")
-	<-time.After(ms * time.Millisecond)
 	return id
 }

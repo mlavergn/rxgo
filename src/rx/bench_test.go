@@ -5,17 +5,17 @@ import (
 )
 
 func RxIntervalBench(events int) {
-	subscription := NewSubscription()
+	observer := NewObserver()
 	interval := NewInterval(50)
-	interval.Take(events).Subscribe <- subscription
+	interval.Take(events).Subscribe <- observer
 loop:
 	for {
 		select {
-		case <-subscription.Next:
+		case <-observer.Next:
 			break
-		case <-subscription.Error:
+		case <-observer.Error:
 			break loop
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			break loop
 		}
 	}

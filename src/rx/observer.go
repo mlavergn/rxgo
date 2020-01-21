@@ -13,8 +13,8 @@ type Event struct {
 	evComplete *Observable
 }
 
-// Subscription type
-type Subscription struct {
+// Observer type
+type Observer struct {
 	eventChan    chan Event
 	Next         chan interface{}
 	Error        chan error
@@ -24,10 +24,10 @@ type Subscription struct {
 	UID          string
 }
 
-// NewSubscription init
-func NewSubscription() *Subscription {
-	log.Println("Subscription.NewSubscription")
-	id := &Subscription{
+// NewObserver init
+func NewObserver() *Observer {
+	log.Println("Observer.NewObserver")
+	id := &Observer{
 		eventChan: make(chan Event, 10),
 		Next:      make(chan interface{}, 1),
 		Error:     make(chan error, 1),
@@ -43,7 +43,7 @@ func NewSubscription() *Subscription {
 	go func() {
 		defer func() {
 			id.closed = true
-			log.Println(id.UID, "Subscription.finalize")
+			log.Println(id.UID, "Observer.finalize")
 			close(id.eventChan)
 			close(id.Next)
 			close(id.Error)
@@ -52,20 +52,20 @@ func NewSubscription() *Subscription {
 		wg.Done()
 
 		for {
-			dlog.Println(id.UID, "Subscription<-eventChan")
+			dlog.Println(id.UID, "Observer<-eventChan")
 			select {
 			case event := <-id.eventChan:
 				switch {
 				case event.evNext != nil:
-					dlog.Println(id.UID, "Subscription<-Next")
+					dlog.Println(id.UID, "Observer<-Next")
 					id.Next <- event.evNext
 					break
 				case event.evError != nil:
-					dlog.Println(id.UID, "Subscription<-Error")
+					dlog.Println(id.UID, "Observer<-Error")
 					id.Error <- event.evError
 					return
 				case event.evComplete != nil:
-					dlog.Println(id.UID, "Subscription<-Complete")
+					dlog.Println(id.UID, "Observer<-Complete")
 					id.Complete <- event.evComplete
 					return
 				}
@@ -79,8 +79,8 @@ func NewSubscription() *Subscription {
 }
 
 // next helper
-func (id *Subscription) next(event interface{}) *Subscription {
-	log.Println(id.UID, "Subscription.next")
+func (id *Observer) next(event interface{}) *Observer {
+	log.Println(id.UID, "Observer.next")
 	if id.closed {
 		return nil
 	}
@@ -91,8 +91,8 @@ func (id *Subscription) next(event interface{}) *Subscription {
 }
 
 // error helper
-func (id *Subscription) error(err error) *Subscription {
-	log.Println(id.UID, "Subscription.error")
+func (id *Observer) error(err error) *Observer {
+	log.Println(id.UID, "Observer.error")
 
 	id.finalizeOnce.Do(func() {
 		id.eventChan <- Event{evError: err}
@@ -102,8 +102,8 @@ func (id *Subscription) error(err error) *Subscription {
 }
 
 // complete helper
-func (id *Subscription) complete(obs *Observable) *Subscription {
-	log.Println(id.UID, "Subscription.complete")
+func (id *Observer) complete(obs *Observable) *Observer {
+	log.Println(id.UID, "Observer.complete")
 
 	id.finalizeOnce.Do(func() {
 		id.eventChan <- Event{evComplete: obs}

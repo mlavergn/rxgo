@@ -16,22 +16,22 @@ func TestRequestText(t *testing.T) {
 
 	completeCnt := 0
 
-	subscription := NewSubscription()
-	observable.Subscribe <- subscription
+	observer := NewObserver()
+	observable.Subscribe <- observer
 loop:
 	for {
 
 		select {
-		case event := <-subscription.Next:
+		case event := <-observer.Next:
 			data := ToString(event, "")
 			if len(data) < 1 {
 				t.Fatalf("Next invalid length for %v", data)
 			}
 			break
-		case err := <-subscription.Error:
+		case err := <-observer.Error:
 			t.Fatalf("Error %v", err)
 			return
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			completeCnt++
 			break loop
 		}
@@ -56,12 +56,12 @@ func TestRequestLine(t *testing.T) {
 	completeCnt := 0
 	lines := []string{}
 
-	subscription := NewSubscription()
-	observable.Subscribe <- subscription
+	observer := NewObserver()
+	observable.Subscribe <- observer
 loop:
 	for {
 		select {
-		case event := <-subscription.Next:
+		case event := <-observer.Next:
 			actual++
 			data := event.([]byte)
 			if len(data) < 1 {
@@ -69,10 +69,10 @@ loop:
 			}
 			lines = append(lines, string(data))
 			break
-		case err := <-subscription.Error:
+		case err := <-observer.Error:
 			t.Fatalf("Error %v", err)
 			break loop
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			completeCnt++
 			break loop
 		}
@@ -99,21 +99,21 @@ func TestRequestJSON(t *testing.T) {
 
 	completeCnt := 0
 
-	subscription := NewSubscription()
-	observable.Subscribe <- subscription
+	observer := NewObserver()
+	observable.Subscribe <- observer
 loop:
 	for {
 		select {
-		case event := <-subscription.Next:
+		case event := <-observer.Next:
 			data := ToStringMap(event, nil)
 			if len(data) < 1 {
 				t.Fatalf("Next invalid length for %v", data)
 			}
 			break
-		case err := <-subscription.Error:
+		case err := <-observer.Error:
 			t.Fatalf("Error %v", err)
 			return
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			completeCnt++
 			break loop
 		}
@@ -135,22 +135,22 @@ func TestRequestSSE(t *testing.T) {
 
 	completeCnt := 0
 
-	subscription := NewSubscription()
-	observable.Take(1).Subscribe <- subscription
+	observer := NewObserver()
+	observable.Take(1).Subscribe <- observer
 loop:
 	for {
 		select {
-		case event := <-subscription.Next:
+		case event := <-observer.Next:
 			data := ToStringMap(event, nil)
 			if len(data) < 3 {
 				t.Fatalf("Expected min 3 lines, but received %v", len(data))
 				return
 			}
 			break
-		case err := <-subscription.Error:
+		case err := <-observer.Error:
 			t.Fatalf("Error %v", err)
 			return
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			completeCnt++
 			break loop
 		}

@@ -11,7 +11,7 @@ func TestReplay(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	subscription := NewSubscription()
+	observer := NewObserver()
 	subject := NewReplaySubject(events)
 	subject.Next <- 1
 	subject.Next <- 2
@@ -19,11 +19,11 @@ func TestReplay(t *testing.T) {
 	subject.Next <- 4
 	subject.Next <- 5
 	subject.Next <- 6
-	subject.Subscribe <- subscription
+	subject.Subscribe <- observer
 loop:
 	for {
 		select {
-		case next := <-subscription.Next:
+		case next := <-observer.Next:
 			// t.Log("next", next.(int))
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
@@ -31,14 +31,14 @@ loop:
 			}
 			nextCnt++
 			if nextCnt == events {
-				subscription.Complete <- subject
+				observer.Complete <- subject
 			}
 			break
-		case <-subscription.Error:
+		case <-observer.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop

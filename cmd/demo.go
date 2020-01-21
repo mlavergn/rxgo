@@ -8,28 +8,28 @@ import (
 	"github.com/mlavergn/rxgo/src/rx"
 )
 
-func demoInterval(subscription *rx.Subscription) *rx.Observable {
+func demoInterval(observer *rx.Observer) *rx.Observable {
 	interval := rx.NewInterval(200)
 	interval.UID = "demoInterval." + interval.UID
 	return interval.Take(10)
 }
 
-func demoSubject(subscription *rx.Subscription) *rx.Observable {
+func demoSubject(observer *rx.Observer) *rx.Observable {
 	interval := rx.NewInterval(200)
 	interval.UID = "demoSubjectInterval." + interval.UID
 	observable := rx.NewSubject()
 	observable.UID = "demoSubjectObservable." + observable.UID
 	interval.Pipe(observable)
-	observable.Subscribe <- subscription
+	observable.Subscribe <- observer
 	observable.Next <- 99
 	return observable.Take(10)
 }
 
-func demoBehavior(subscription *rx.Subscription) *rx.Observable {
+func demoBehavior(observer *rx.Observer) *rx.Observable {
 	return rx.NewBehaviorSubject(99).Take(1)
 }
 
-func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
+func demoReplay(observer *rx.Observer, count int) *rx.Observable {
 	observable := rx.NewReplaySubject(count)
 	observable.UID = "demoReplayObservable." + observable.UID
 
@@ -45,7 +45,7 @@ func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
 	return observable.Take(5)
 }
 
-func demoRetry(subscription *rx.Subscription) *rx.Observable {
+func demoRetry(observer *rx.Observer) *rx.Observable {
 	rxhttp := rx.NewHTTPRequest(10 * time.Second)
 	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
 	if err != nil {
@@ -62,7 +62,7 @@ func demoRetry(subscription *rx.Subscription) *rx.Observable {
 	return observable
 }
 
-func demoSSE(subscription *rx.Subscription) *rx.Observable {
+func demoSSE(observer *rx.Observer) *rx.Observable {
 	rxhttp := rx.NewHTTPRequest(10 * time.Second)
 	observable, err := rxhttp.SSESubject("http://demo.howopensource.com/sse/stocks.php", nil)
 	if err != nil {
@@ -80,17 +80,17 @@ func demoSSE(subscription *rx.Subscription) *rx.Observable {
 func main() {
 	rx.Config(false)
 	closeCh := make(chan bool)
-	subscription := rx.NewSubscription()
-	subscription.UID = "demoSubscription." + subscription.UID
+	observer := rx.NewObserver()
+	observer.UID = "demoSubscription." + observer.UID
 
 	parse := true
-	// observable := demoInterval(subscription)
-	// observable := demoSubject(subscription)
-	// observable := demoBehavior(subscription)
-	observable := demoReplay(subscription, 4)
+	// observable := demoInterval(observer)
+	// observable := demoSubject(observer)
+	// observable := demoBehavior(observer)
+	observable := demoReplay(observer, 4)
 
-	// observable := demoRetry(subscription)
-	// observable := demoSSE(subscription)
+	// observable := demoRetry(observer)
+	// observable := demoSSE(observer)
 	// parse = false
 
 	var wg sync.WaitGroup
@@ -100,13 +100,13 @@ func main() {
 		wg.Done()
 		for {
 			select {
-			case event := <-subscription.Next:
-				fmt.Println(subscription.UID, event)
+			case event := <-observer.Next:
+				fmt.Println(observer.UID, event)
 				if parse {
 					v := rx.ToInt(event, -1)
 					if v == 99 || v == -1 {
 						fmt.Println("Done")
-						observable.Unsubscribe <- subscription
+						observable.Unsubscribe <- observer
 					}
 				}
 			}
@@ -114,7 +114,7 @@ func main() {
 	}()
 
 	wg.Wait()
-	observable.Subscribe <- subscription
+	observable.Subscribe <- observer
 
 	<-observable.Finalize
 	close(closeCh)

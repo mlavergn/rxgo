@@ -11,13 +11,13 @@ func TestInterval(t *testing.T) {
 	errorCnt := 0
 	completeCnt := 0
 
-	subscription := NewSubscription()
+	observer := NewObserver()
 	interval := NewInterval(50)
-	interval.Take(events).Subscribe <- subscription
+	interval.Take(events).Subscribe <- observer
 loop:
 	for {
 		select {
-		case next := <-subscription.Next:
+		case next := <-observer.Next:
 			// t.Log("next", next.(int))
 			if next == nil {
 				t.Fatalf("Unexpected next nil value")
@@ -25,11 +25,11 @@ loop:
 			}
 			nextCnt++
 			break
-		case <-subscription.Error:
+		case <-observer.Error:
 			// t.Log("error", errorCnt)
 			errorCnt++
 			break loop
-		case <-subscription.Complete:
+		case <-observer.Complete:
 			// t.Log("complete", completeCnt)
 			completeCnt++
 			break loop
