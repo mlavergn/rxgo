@@ -2,12 +2,10 @@ package rx
 
 import (
 	"testing"
-	"time"
 )
 
 func TestRequestText(t *testing.T) {
-	rxhttp := NewHTTPRequest(10 * time.Second)
-	subject, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
+	subject, err := NewHTTPTextSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -45,8 +43,7 @@ loop:
 func TestRequestLine(t *testing.T) {
 	expect := 11
 	actual := 0
-	rxhttp := NewHTTPRequest(10 * time.Second)
-	subject, err := rxhttp.LineSubject("http://httpbin.org/get", nil)
+	subject, err := NewHTTPLineSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -89,8 +86,7 @@ loop:
 	}
 }
 func TestRequestJSON(t *testing.T) {
-	rxhttp := NewHTTPRequest(10 * time.Second)
-	subject, err := rxhttp.JSONSubject("http://httpbin.org/get", nil)
+	subject, err := NewHTTPJSONSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -125,8 +121,7 @@ loop:
 }
 
 func TestRequestSSE(t *testing.T) {
-	rxhttp := NewHTTPRequest(10 * time.Second)
-	subject, err := rxhttp.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
+	subject, err := NewHTTPSSESubject("http://express-eventsource.herokuapp.com/events", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)

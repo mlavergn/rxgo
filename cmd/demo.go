@@ -46,8 +46,7 @@ func demoReplay(observer *rx.Observer, count int) *rx.Observable {
 }
 
 func demoRetry(observer *rx.Observer) *rx.Observable {
-	rxhttp := rx.NewHTTPRequest(10 * time.Second)
-	subject, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
+	subject, err := rx.NewHTTPTextSubject("http://httpbin.org/get", nil)
 	if err != nil {
 		fmt.Println("demoRetry", err)
 		return nil
@@ -63,8 +62,7 @@ func demoRetry(observer *rx.Observer) *rx.Observable {
 }
 
 func demoSSE(observer *rx.Observer) *rx.Observable {
-	rxhttp := rx.NewHTTPRequest(10 * time.Second)
-	subject, err := rxhttp.SSESubject("http://demo.howopensource.com/sse/stocks.php", nil)
+	subject, err := rx.NewHTTPSSESubject("http://demo.howopensource.com/sse/stocks.php", nil)
 	if err != nil {
 		fmt.Println("demoSSE", err)
 		return nil

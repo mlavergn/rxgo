@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.32.0
+VERSION := 0.33.0
 
 ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rx/rx.go

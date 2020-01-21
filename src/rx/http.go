@@ -15,8 +15,8 @@ import (
 	"time"
 )
 
-// HTTPRequest type
-type HTTPRequest struct {
+// HTTPClient type
+type HTTPClient struct {
 	client *http.Client
 }
 
@@ -26,8 +26,8 @@ var tlsConfig *tls.Config
 var httpClient *http.Client
 var httpClientTimeout = -1 * time.Second
 
-// NewHTTPRequest init
-func NewHTTPRequest(timeout time.Duration) *HTTPRequest {
+// NewHTTPClient init
+func NewHTTPClient(timeout time.Duration) *HTTPClient {
 	// only need to configure tls.Config once
 	tlsConfigOnce.Do(func() {
 		rootCAs, _ := x509.SystemCertPool()
@@ -61,13 +61,13 @@ func NewHTTPRequest(timeout time.Duration) *HTTPRequest {
 		}
 	}
 
-	return &HTTPRequest{
+	return &HTTPClient{
 		client: httpClient,
 	}
 }
 
-// httpSubject export
-func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimiter byte) (*Observable, error) {
+// subject export
+func (id *HTTPClient) subject(url string, mime string, data []byte, delimiter byte) (*Observable, error) {
 	log.Println("HTTPRequest.httpSubject")
 	var req *http.Request
 	var err error
@@ -98,7 +98,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 		// perform the request
 		resp, err := id.client.Do(req)
 		if err != nil {
-			subject.Error <- err
+			subject.onError(err)
 			return
 		}
 
@@ -116,31 +116,31 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 				data, err := ioutil.ReadAll(reader)
 				if err != nil {
 					log.Println(subject.UID, "HTTPRequest.httpSubject.Error", err)
-					subject.Error <- err
+					subject.onError(err)
 					return
 				}
-				subject.Next <- data
+				subject.onNext(data)
 				log.Println(subject.UID, "HTTPRequest.httpSubject.Complete via ReadAll")
 				subject.Yield()
-				subject.Complete <- subject
+				subject.onComplete(subject)
 				return
 			}
 			chunk, err := reader.ReadBytes(delimiter)
 			if err != nil && err != io.EOF {
 				log.Println(subject.UID, "HTTPRequest.httpSubject.Error", err)
-				subject.Error <- err
+				subject.onError(err)
 				return
 			}
 			chunkLength := len(chunk)
 			if chunkLength != 0 {
 				dlog.Println(subject.UID, "HTTPRequest.httpSubject.Next")
-				subject.Next <- chunk
+				subject.onNext(chunk)
 				if contentLength > 0 {
 					contentLength -= int64(chunkLength)
 					if contentLength <= 0 {
 						dlog.Println(subject.UID, "HTTPRequest.httpSubject.Complete via ContentLength")
 						subject.Yield()
-						subject.Complete <- subject
+						subject.onComplete(subject)
 						return
 					}
 				}
@@ -149,7 +149,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 			if err == io.EOF {
 				dlog.Println(subject.UID, "HTTPRequest.httpSubject.Complete via EOF")
 				subject.Yield()
-				subject.Complete <- subject
+				subject.onComplete(subject)
 				return
 			}
 		}
@@ -159,14 +159,15 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 	return subject, nil
 }
 
-// ByteSubject HTTP response of Observable<[]byte>
-func (id *HTTPRequest) ByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
+// NewHTTPByteSubject HTTP response of Observable<[]byte>
+func NewHTTPByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.ByteSubject")
 	subject := NewSubject()
+	client := NewHTTPClient(10 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.ByteSubject.Resubscribe")
-		httpSubject, err := id.httpSubject(url, contentType, payload, 0)
+		httpSubject, err := client.subject(url, contentType, payload, 0)
 		if err != nil {
 			return err
 		}
@@ -179,14 +180,15 @@ func (id *HTTPRequest) ByteSubject(url string, contentType string, payload []byt
 	return subject, nil
 }
 
-// TextSubject HTTP response of Observable<string>
-func (id *HTTPRequest) TextSubject(url string, payload []byte) (*Observable, error) {
+// NewHTTPTextSubject HTTP response of Observable<string>
+func NewHTTPTextSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.TextSubject")
 	subject := NewSubject()
+	client := NewHTTPClient(10 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.TextSubject.Resubscribe")
-		httpSubject, err := id.httpSubject(url, "text/plain", payload, 0)
+		httpSubject, err := client.subject(url, "text/plain", payload, 0)
 		if err != nil {
 			return err
 		}
@@ -205,14 +207,15 @@ func (id *HTTPRequest) TextSubject(url string, payload []byte) (*Observable, err
 	return subject, nil
 }
 
-// LineSubject HTTP response of Observable<[]byte> delimited by newlines
-func (id *HTTPRequest) LineSubject(url string, payload []byte) (*Observable, error) {
+// NewHTTPLineSubject HTTP response of Observable<[]byte> delimited by newlines
+func NewHTTPLineSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.LineSubject")
 	subject := NewSubject()
+	client := NewHTTPClient(10 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.LineSubject.Resubscribe")
-		httpSubject, err := id.httpSubject(url, "text/plain", payload, byte('\n'))
+		httpSubject, err := client.subject(url, "text/plain", payload, byte('\n'))
 		if err != nil {
 			return err
 		}
@@ -225,14 +228,15 @@ func (id *HTTPRequest) LineSubject(url string, payload []byte) (*Observable, err
 	return subject, nil
 }
 
-// JSONSubject export
-func (id *HTTPRequest) JSONSubject(url string, payload []byte) (*Observable, error) {
+// NewHTTPJSONSubject export
+func NewHTTPJSONSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.JSONSubject")
 	subject := NewSubject()
+	client := NewHTTPClient(10 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.JSONSubject.Resubscribe")
-		httpSubject, err := id.httpSubject(url, "application/json", payload, 0)
+		httpSubject, err := client.subject(url, "application/json", payload, 0)
 		if err != nil {
 			return err
 		}
@@ -244,7 +248,7 @@ func (id *HTTPRequest) JSONSubject(url string, payload []byte) (*Observable, err
 			var result interface{}
 			err := json.Unmarshal(data, &result)
 			if err != nil {
-				subject.Error <- err
+				subject.onError(err)
 				return nil
 			}
 			return result
@@ -258,10 +262,11 @@ func (id *HTTPRequest) JSONSubject(url string, payload []byte) (*Observable, err
 	return subject, nil
 }
 
-// SSESubject export
-func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, error) {
+// NewHTTPSSESubject export
+func NewHTTPSSESubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.SSESubject")
 	subject := NewSubject()
+	client := NewHTTPClient(10 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.SSESubject.Resubscribe")
@@ -270,7 +275,7 @@ func (id *HTTPRequest) SSESubject(url string, payload []byte) (*Observable, erro
 		lines := make([][]byte, 10)
 		i := 0
 
-		httpSubject, err := id.httpSubject(url, "text/event-stream", payload, byte('\n'))
+		httpSubject, err := client.subject(url, "text/event-stream", payload, byte('\n'))
 		if err != nil {
 			return err
 		}

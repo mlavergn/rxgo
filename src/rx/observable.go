@@ -154,21 +154,23 @@ func (id *Observable) addPipe(pipe *Observable) {
 	id.pipesMutex.Unlock()
 }
 
-func (id *Observable) delPipe(pipe *Observable) {
+func (id *Observable) delPipe(pipe *Observable, unsubscribe bool) {
 	id.pipesMutex.Lock()
 	delete(id.pipes, pipe)
-	select {
-	case pipe.Unsubscribe <- id.Observer:
-	default:
-	}
 	id.pipesMutex.Unlock()
+	if unsubscribe {
+		select {
+		case pipe.Unsubscribe <- id.Observer:
+		default:
+		}
+	}
 }
 
 func (id *Observable) clearPipes() {
 	// remove and unsubscribe from all merged
 	if len(id.pipes) != 0 {
 		for pipe := range id.pipes {
-			id.delPipe(pipe)
+			id.delPipe(pipe, true)
 		}
 	}
 }
@@ -243,8 +245,12 @@ func (id *Observable) onComplete(obs *Observable) bool {
 
 	// if completion event came from this instance, don't interrupt it
 	if id != obs {
+		if id.onResubscribe(nil) {
+			fmt.Println(id.UID, "Observable<-Complete blocked by resubscribe")
+			return true
+		}
 		if obs != nil {
-			id.delPipe(obs)
+			id.delPipe(obs, false)
 		}
 		if id.share {
 			fmt.Println(id.UID, "Observable<-Complete blocked by active share")
@@ -252,10 +258,6 @@ func (id *Observable) onComplete(obs *Observable) bool {
 		}
 		if id.merge && len(id.pipes) != 0 && len(id.observers) != 0 {
 			fmt.Println(id.UID, "Observable<-Complete blocked by active merge")
-			return true
-		}
-		if id.onResubscribe(nil) {
-			fmt.Println(id.UID, "Observable<-Complete blocked by resubscribe")
 			return true
 		}
 	}
@@ -331,9 +333,9 @@ func (id *Observable) onResubscribe(err error) bool {
 	if id.resubscribeFn != nil {
 		dlog.Println(id.UID, "Observable.onResubscribe.resubscribeFn")
 		id.clearPipes()
-		closed := id.Observer
+		oldObserver := id.Observer
 		id.Observer = NewObserver()
-		closed.complete(id)
+		oldObserver.complete(id)
 		if err != nil {
 			dlog.Println(id.UID, "Observable.onResubscribe.retryWhen")
 			if id.retryWhenFn != nil && id.retryWhenFn() {
