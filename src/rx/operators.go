@@ -36,8 +36,16 @@ func (id *Observable) Map(fn func(interface{}) interface{}) *Observable {
 	return id
 }
 
+// Tap adds a side effect to an event
+func (id *Observable) Tap(fn func(interface{})) *Observable {
+	log.Println(id.UID, "Observable.Tap")
+	id.operators = append(id.operators, operator{operatorTap, fn})
+	return id
+}
+
 // Distinct operator
 func (id *Observable) Distinct() *Observable {
+	log.Println(id.UID, "Observable.Distinct")
 	last := ""
 	id.Filter(func(event interface{}) bool {
 		eventStr := fmt.Sprint(event)
@@ -51,9 +59,10 @@ func (id *Observable) Distinct() *Observable {
 }
 
 // Delay operator
-// sleep allows the observable to yield to the go channel
-func (id *Observable) Delay(ms time.Duration) *Observable {
+func (id *Observable) Delay(delay time.Duration) *Observable {
 	log.Println(id.UID, "Observable.Delay")
-	<-time.After(ms * time.Millisecond)
+	id.Tap(func(event interface{}) {
+		<-time.After(delay)
+	})
 	return id
 }

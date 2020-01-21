@@ -9,7 +9,7 @@ import (
 )
 
 // Version export
-const Version = "0.34.0"
+const Version = "0.35.0"
 
 // DEBUG flag for runtime
 const DEBUG = false

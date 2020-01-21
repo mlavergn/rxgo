@@ -10,6 +10,7 @@ type operatorType int
 const (
 	operatorMap operatorType = iota
 	operatorFilter
+	operatorTap
 )
 
 type operator struct {
@@ -194,6 +195,10 @@ func (id *Observable) onNext(event interface{}) bool {
 				return true
 			}
 			event = mappedEvent
+			break
+		case operatorTap:
+			tapFn := op.fn.(func(interface{}))
+			tapFn(event)
 			break
 		}
 	}
