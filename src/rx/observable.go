@@ -29,6 +29,7 @@ type Observable struct {
 	multicast     bool
 	Subscribe     chan *Subscription
 	Unsubscribe   chan *Subscription
+	completeOnce  sync.Once
 	Finalize      chan bool
 	merges        map[*Observable]*Observable
 	mergesMutex   sync.RWMutex
@@ -75,7 +76,7 @@ func NewObservable() *Observable {
 			id.Finalize <- true
 			id.Yield()
 			close(id.Finalize)
-			id.complete(nil)
+			id.complete(id)
 			close(id.connect)
 			close(id.Subscribe)
 			close(id.Unsubscribe)
@@ -87,47 +88,32 @@ func NewObservable() *Observable {
 			select {
 			case event := <-id.Next:
 				dlog.Println(id.UID, "Observable<-Next")
-				id.onNext(event)
-				break
-			case err := <-id.Error:
-				dlog.Println(id.UID, "Observable<-Error")
-				if id.onResubscribe(err) {
-					log.Println(id.UID, "Observable<-Error blocked by resubscribe")
+				if id.onNext(event) {
 					break
 				}
-				if id.catchErrorFn != nil {
-					log.Println(id.UID, "Observable<-Error blocked by catchError")
-					id.catchErrorFn(err)
-					break
-				}
-				id.onError(err)
 				return
-			case <-id.Complete:
+			case err := <-id.Error:
+				dlog.Println(id.UID, "Observable<-Error", err)
+				if id.onError(err) {
+					break
+				}
+				return
+			case observable := <-id.Complete:
 				dlog.Println(id.UID, "Observable<-Complete")
-				if len(id.merges) != 0 && (len(id.observers) != 0 || id.share) {
-					log.Println(id.UID, "Observable<-Complete blocked by active merge")
+				if id.onComplete(observable) {
 					break
 				}
-				if id.onResubscribe(nil) {
-					log.Println(id.UID, "Observable<-Complete blocked by resubscribe")
-					break
-				}
-				id.onComplete()
 				return
 			case observer := <-id.Subscribe:
 				dlog.Println(id.UID, "Observable<-Subscribe")
-
-				if id.publish {
-					id.connecters[observer] = observer
-					break
-				}
-
 				id.onSubscribe(observer)
 				break
 			case observer := <-id.Unsubscribe:
 				dlog.Println(id.UID, "Observable<-Unsubscribe")
-				id.onUnsubscribe(observer)
-				break
+				if id.onUnsubscribe(observer) {
+					break
+				}
+				return
 			}
 		}
 	}()
@@ -138,7 +124,7 @@ func NewObservable() *Observable {
 }
 
 // onNext handler
-func (id *Observable) onNext(event interface{}) {
+func (id *Observable) onNext(event interface{}) bool {
 	log.Println(id.UID, "Observable.onNext")
 
 	// Operations
@@ -147,14 +133,14 @@ func (id *Observable) onNext(event interface{}) {
 		case operatorFilter:
 			filterFn := op.fn.(func(interface{}) bool)
 			if filterFn(event) != true {
-				return
+				return true
 			}
 			break
 		case operatorMap:
 			mapFn := op.fn.(func(interface{}) interface{})
 			mappedEvent := mapFn(event)
 			if mappedEvent == nil {
-				return
+				return true
 			}
 			event = mappedEvent
 			break
@@ -175,55 +161,114 @@ func (id *Observable) onNext(event interface{}) {
 	if id.takeFn != nil && !id.takeFn() {
 		dlog.Println(id.UID, "Take complete")
 		id.Yield()
-		id.onComplete()
+		id.onComplete(id)
+		return false
 	}
+
+	return true
 }
 
 // onError handler
-func (id *Observable) onError(err error) {
-	log.Println(id.UID, "Observable.onError")
-	for _, observer := range id.observers {
-		delete(id.observers, observer)
-		observer.error(err)
+func (id *Observable) onError(err error) bool {
+	fmt.Println(id.UID, "Observable.onError", err)
+
+	if id.onResubscribe(err) {
+		fmt.Println(id.UID, "Observable<-Error blocked by resubscribe")
+		return true
+	}
+	if id.catchErrorFn != nil {
+		fmt.Println(id.UID, "Observable<-Error blocked by catchError")
+		id.catchErrorFn(err)
+		return true
 	}
 
-	// remove and unsubscribe from all merged
-	if len(id.merges) != 0 {
-		id.mergesMutex.Lock()
-		for merge := range id.merges {
-			delete(id.merges, merge)
-			merge.Unsubscribe <- id.Subscription
+	id.completeOnce.Do(func() {
+		for _, observer := range id.observers {
+			delete(id.observers, observer)
+			observer.error(err)
 		}
-		id.mergesMutex.Unlock()
-	}
+
+		// remove and unsubscribe from all merged
+		if len(id.merges) != 0 {
+			id.mergesMutex.Lock()
+			for merge := range id.merges {
+				delete(id.merges, merge)
+				select {
+				case merge.Unsubscribe <- id.Subscription:
+				default:
+				}
+			}
+			id.mergesMutex.Unlock()
+		}
+	})
+
+	return false
 }
 
 // onComplete handler
-func (id *Observable) onComplete() {
+func (id *Observable) onComplete(obs *Observable) bool {
 	log.Println(id.UID, "Observable.onComplete")
-	for _, observer := range id.observers {
-		delete(id.observers, observer)
-		observer.complete()
+
+	// if completion event came from this instance, don't interrupt it
+	if id != obs {
+		if obs != nil {
+			obs.Unsubscribe <- id.Subscription
+		}
+		if id.share {
+			fmt.Println(id.UID, "Observable<-Complete blocked by active share")
+			return true
+		}
+		if len(id.merges) != 0 && len(id.observers) != 0 {
+			fmt.Println(id.UID, "Observable<-Complete blocked by active merge")
+			return true
+		}
+		if id.onResubscribe(nil) {
+			fmt.Println(id.UID, "Observable<-Complete blocked by resubscribe")
+			return true
+		}
 	}
 
-	// remove and unsubscribe from all merged
-	if len(id.merges) != 0 {
-		id.mergesMutex.Lock()
-		for merge := range id.merges {
-			delete(id.merges, merge)
-			merge.Unsubscribe <- id.Subscription
+	id.completeOnce.Do(func() {
+		for _, observer := range id.observers {
+			delete(id.observers, observer)
+			select {
+			case observer.Complete <- id:
+			default:
+			}
 		}
-		id.mergesMutex.Unlock()
-	}
+
+		// remove and unsubscribe from all merged
+		if len(id.merges) != 0 {
+			id.mergesMutex.Lock()
+			for merge := range id.merges {
+				delete(id.merges, merge)
+				select {
+				case merge.Unsubscribe <- id.Subscription:
+				default:
+				}
+			}
+			id.mergesMutex.Unlock()
+		}
+		return
+	})
+
+	return false
 }
 
 // onSubscribe handler
-func (id *Observable) onSubscribe(observer *Subscription) {
+func (id *Observable) onSubscribe(observer *Subscription) bool {
 	log.Println(id.UID, "Observable.onSubscribe")
+
+	// if publish wait to fully subscribe
+	if id.publish {
+		id.connecters[observer] = observer
+		return false
+	}
+
 	if !id.multicast {
 		for _, observer := range id.observers {
 			delete(id.observers, observer)
-			observer.complete()
+			observer.Complete <- id
 		}
 	}
 	id.observers[observer] = observer
@@ -251,16 +296,18 @@ func (id *Observable) onSubscribe(observer *Subscription) {
 			break
 		}
 	}
+
+	return false
 }
 
 // onUnsubscribe handler
-func (id *Observable) onUnsubscribe(observer *Subscription) {
+func (id *Observable) onUnsubscribe(observer *Subscription) bool {
 	log.Println(id.UID, "Observable.onUnsubscribe")
 	delete(id.observers, observer)
-	observer.complete()
-	if len(id.observers) == 0 && !id.share {
-		id.Subscription.Complete <- true
+	if len(id.observers) > 0 || id.share {
+		return true
 	}
+	return false
 }
 
 // onResubscribe handler
