@@ -1,7 +1,6 @@
 package rx
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
@@ -222,14 +221,14 @@ func (id *Observable) onNext(event interface{}) bool {
 
 // onError handler
 func (id *Observable) onError(err error) bool {
-	fmt.Println(id.UID, "Observable.onError", err)
+	log.Println(id.UID, "Observable.onError", err)
 
 	if id.onResubscribe(err) {
-		fmt.Println(id.UID, "Observable<-Error blocked by resubscribe")
+		log.Println(id.UID, "Observable<-Error blocked by resubscribe")
 		return true
 	}
 	if id.catchErrorFn != nil {
-		fmt.Println(id.UID, "Observable<-Error blocked by catchError")
+		log.Println(id.UID, "Observable<-Error blocked by catchError")
 		id.catchErrorFn(err)
 		return true
 	}
@@ -246,18 +245,18 @@ func (id *Observable) onComplete(obs *Observable) bool {
 	// if completion event came from this instance, don't interrupt it
 	if id != obs {
 		if id.onResubscribe(nil) {
-			fmt.Println(id.UID, "Observable<-Complete blocked by resubscribe")
+			log.Println(id.UID, "Observable<-Complete blocked by resubscribe")
 			return true
 		}
 		if obs != nil {
 			id.delPipe(obs, false)
 		}
 		if id.share {
-			fmt.Println(id.UID, "Observable<-Complete blocked by active share")
+			log.Println(id.UID, "Observable<-Complete blocked by active share")
 			return true
 		}
 		if id.merge && len(id.pipes) != 0 && len(id.observers) != 0 {
-			fmt.Println(id.UID, "Observable<-Complete blocked by active merge")
+			log.Println(id.UID, "Observable<-Complete blocked by active merge")
 			return true
 		}
 	}
