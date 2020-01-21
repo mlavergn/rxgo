@@ -53,10 +53,35 @@ func NewFrom(values []interface{}) *Observable {
 		// wait for connect
 		<-id.connect
 
-		for value := range values {
-			id.Next <- value
+		for _, val := range values {
+			id.Next <- val
 		}
-		id.Complete <- true
+		id.Yield()
+		id.Complete <- id
+	}()
+
+	wg.Wait()
+	return id
+}
+
+// NewFromMap init
+func NewFromMap(value interface{}) *Observable {
+	log.Println("Interval.NewFrom")
+	id := NewObservable()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		wg.Done()
+		// wait for connect
+		<-id.connect
+
+		for key, val := range value.(map[string]interface{}) {
+			id.Next <- map[string]interface{}{key: val}
+		}
+		id.Yield()
+		id.Complete <- id
 	}()
 
 	wg.Wait()

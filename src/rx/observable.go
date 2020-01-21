@@ -38,6 +38,7 @@ type Observable struct {
 	retryWhenFn   func() bool
 	catchErrorFn  func(error)
 	resubscribeFn func(*Observable) error
+	takeFn        func() bool
 }
 
 // NewObservable init
@@ -61,6 +62,7 @@ func NewObservable() *Observable {
 		retryWhenFn:   nil,
 		catchErrorFn:  nil,
 		resubscribeFn: nil,
+		takeFn:        nil,
 	}
 
 	// block to allow the reader goroutine to spin up
@@ -73,7 +75,7 @@ func NewObservable() *Observable {
 			id.Finalize <- true
 			id.Yield()
 			close(id.Finalize)
-			id.complete()
+			id.complete(nil)
 			close(id.connect)
 			close(id.Subscribe)
 			close(id.Unsubscribe)
@@ -168,6 +170,13 @@ func (id *Observable) onNext(event interface{}) {
 	for _, observer := range id.observers {
 		observer.next(event)
 	}
+
+	// Take
+	if id.takeFn != nil && !id.takeFn() {
+		dlog.Println(id.UID, "Take complete")
+		id.Yield()
+		id.onComplete()
+	}
 }
 
 // onError handler
@@ -218,7 +227,6 @@ func (id *Observable) onSubscribe(observer *Subscription) {
 		}
 	}
 	id.observers[observer] = observer
-	observer.observable = id
 
 	// replay for the new sub
 	if id.buffer != nil {
@@ -248,7 +256,6 @@ func (id *Observable) onSubscribe(observer *Subscription) {
 // onUnsubscribe handler
 func (id *Observable) onUnsubscribe(observer *Subscription) {
 	log.Println(id.UID, "Observable.onUnsubscribe")
-	observer.observable = nil
 	delete(id.observers, observer)
 	observer.complete()
 	if len(id.observers) == 0 && !id.share {
@@ -268,7 +275,7 @@ func (id *Observable) onResubscribe(err error) bool {
 		dlog.Println(id.UID, "Observable.onResubscribe.resubscribeFn")
 		closed := id.Subscription
 		id.Subscription = NewSubscription()
-		closed.complete()
+		closed.complete(id)
 		if err != nil {
 			dlog.Println(id.UID, "Observable.onResubscribe.retryWhen")
 			if id.retryWhenFn != nil && id.retryWhenFn() {

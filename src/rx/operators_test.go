@@ -12,12 +12,11 @@ func TestFilter(t *testing.T) {
 	completeCnt := 0
 
 	subscription := NewSubscription()
-	subscription.Take(events)
 	interval := NewInterval(10)
 	interval.Filter(func(value interface{}) bool {
 		return (ToInt(value, -1)%2 == 0)
 	})
-	interval.Subscribe <- subscription
+	interval.Take(events).Subscribe <- subscription
 loop:
 	for {
 		select {
@@ -59,12 +58,11 @@ func TestMap(t *testing.T) {
 	completeCnt := 0
 
 	subscription := NewSubscription()
-	subscription.Take(events)
 	interval := NewInterval(5)
 	interval.Map(func(value interface{}) interface{} {
 		return ToInt(value, 0) * 10
 	})
-	interval.Subscribe <- subscription
+	interval.Take(events).Subscribe <- subscription
 loop:
 	for {
 		select {

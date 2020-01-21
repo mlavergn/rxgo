@@ -136,8 +136,7 @@ func TestRequestSSE(t *testing.T) {
 	completeCnt := 0
 
 	subscription := NewSubscription()
-	subscription.Take(1)
-	observable.Subscribe <- subscription
+	observable.Take(1).Subscribe <- subscription
 loop:
 	for {
 		select {

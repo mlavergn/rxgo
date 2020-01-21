@@ -122,7 +122,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 				subject.Next <- data
 				log.Println(subject.UID, "HTTPRequest.httpSubject.Complete via ReadAll")
 				subject.Yield()
-				subject.Complete <- true
+				subject.Complete <- subject
 				return
 			}
 			chunk, err := reader.ReadBytes(delimiter)
@@ -140,7 +140,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 					if contentLength <= 0 {
 						dlog.Println(subject.UID, "HTTPRequest.httpSubject.Complete via ContentLength")
 						subject.Yield()
-						subject.Complete <- true
+						subject.Complete <- subject
 						return
 					}
 				}
@@ -149,7 +149,7 @@ func (id *HTTPRequest) httpSubject(url string, mime string, data []byte, delimit
 			if err == io.EOF {
 				dlog.Println(subject.UID, "HTTPRequest.httpSubject.Complete via EOF")
 				subject.Yield()
-				subject.Complete <- true
+				subject.Complete <- subject
 				return
 			}
 		}

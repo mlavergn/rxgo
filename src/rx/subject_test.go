@@ -31,7 +31,7 @@ loop:
 			}
 			nextCnt++
 			if nextCnt == events {
-				subscription.Complete <- true
+				subscription.Complete <- subject
 			}
 			break
 		case <-subscription.Error:

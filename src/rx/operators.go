@@ -1,9 +1,9 @@
 package rx
 
-// Pipe operator
-func (id *Observable) Pipe(pipe *Observable) *Observable {
+// Pipe forwards events to the observer
+func (id *Observable) Pipe(observer *Observable) *Observable {
 	log.Println(id.UID, "Observable.Pipe")
-	id.Subscribe <- pipe.Subscription
+	id.Subscribe <- observer.Subscription
 	return id
 }
 
@@ -15,7 +15,7 @@ func (id *Observable) Filter(fn func(interface{}) bool) *Observable {
 	return id
 }
 
-// Map export
+// Map modifies the event type
 func (id *Observable) Map(fn func(interface{}) interface{}) *Observable {
 	log.Println(id.UID, "Observable.Map")
 	id.operators = append(id.operators, operator{operatorMap, fn})

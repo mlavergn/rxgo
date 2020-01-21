@@ -21,7 +21,6 @@ func TestMerge(t *testing.T) {
 	completeCnt := 0
 
 	subscription := NewSubscription()
-	subscription.Take(events)
 	subscription.UID = "testSubscription"
 
 	intervalA := NewInterval(2)
@@ -46,7 +45,7 @@ func TestMerge(t *testing.T) {
 		t.Fatalf("Expected merge count of %v but got %v", 4, len(subject.merges))
 	}
 
-	subject.Subscribe <- subscription
+	subject.Take(events).Subscribe <- subscription
 loop:
 	for {
 		select {

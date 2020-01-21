@@ -11,7 +11,7 @@ import (
 func demoInterval(subscription *rx.Subscription) *rx.Observable {
 	interval := rx.NewInterval(200)
 	interval.UID = "demoInterval." + interval.UID
-	return interval
+	return interval.Take(10)
 }
 
 func demoSubject(subscription *rx.Subscription) *rx.Observable {
@@ -22,11 +22,11 @@ func demoSubject(subscription *rx.Subscription) *rx.Observable {
 	interval.Pipe(observable)
 	observable.Subscribe <- subscription
 	observable.Next <- 99
-	return observable
+	return observable.Take(10)
 }
 
 func demoBehavior(subscription *rx.Subscription) *rx.Observable {
-	return rx.NewBehaviorSubject(99)
+	return rx.NewBehaviorSubject(99).Take(1)
 }
 
 func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
@@ -42,7 +42,7 @@ func demoReplay(subscription *rx.Subscription, count int) *rx.Observable {
 	observable.Next <- 77
 	observable.Next <- 88
 	observable.Next <- 99
-	return observable
+	return observable.Take(5)
 }
 
 func demoRetry(subscription *rx.Subscription) *rx.Observable {
@@ -58,7 +58,7 @@ func demoRetry(subscription *rx.Subscription) *rx.Observable {
 		retry--
 		<-time.After(1 * time.Second)
 		return (retry != 0)
-	})
+	}).Take(1)
 	return observable
 }
 
@@ -73,7 +73,7 @@ func demoSSE(subscription *rx.Subscription) *rx.Observable {
 	observable.Map(func(event interface{}) interface{} {
 		result := rx.ToStringMap(event, nil)
 		return result
-	})
+	}).Take(5)
 	return observable
 }
 
@@ -82,7 +82,6 @@ func main() {
 	closeCh := make(chan bool)
 	subscription := rx.NewSubscription()
 	subscription.UID = "demoSubscription." + subscription.UID
-	subscription.Take(10)
 
 	parse := true
 	// observable := demoInterval(subscription)
@@ -108,7 +107,6 @@ func main() {
 					if v == 99 || v == -1 {
 						fmt.Println("Done")
 						observable.Unsubscribe <- subscription
-						subscription.Complete <- true
 					}
 				}
 			}

@@ -12,9 +12,8 @@ func TestInterval(t *testing.T) {
 	completeCnt := 0
 
 	subscription := NewSubscription()
-	subscription.Take(events)
 	interval := NewInterval(50)
-	interval.Subscribe <- subscription
+	interval.Take(events).Subscribe <- subscription
 loop:
 	for {
 		select {

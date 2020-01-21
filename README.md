@@ -26,25 +26,24 @@ package main
 import "github.com/mlavergn/rxgo/src/rx"
 
 func main() {
-	observable := rx.NewInterval(100)
-	subscription := rx.NewSubscription()
-	subscription.Take(10)
-	go func() {
-		for {
-			select {
-			case event := <-subscription.Next:
-				println(event.(int))
-				break
-			case err := <-subscription.Error:
-				println(err)
-				return
-			case <-subscription.Complete:
-				return
-			}
-		}
-	}()
-	observable.Subscribe <- subscription
-	<-observable.Finalize
+    observable := rx.NewInterval(100)
+    subscription := rx.NewSubscription()
+    go func() {
+        for {
+            select {
+            case event := <-subscription.Next:
+                println(event.(int))
+                break
+            case err := <-subscription.Error:
+                println(err)
+                return
+            case <-subscription.Complete:
+                return
+            }
+        }
+    }()
+    observable.Take(10).Subscribe <- subscription
+    <-observable.Finalize
 }
 ```
 

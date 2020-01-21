@@ -8,36 +8,32 @@ import (
 
 // Event type
 type Event struct {
-	value    interface{}
-	err      error
-	complete bool
+	evNext     interface{}
+	evError    error
+	evComplete *Observable
 }
 
 // Subscription type
 type Subscription struct {
+	eventChan    chan Event
 	Next         chan interface{}
 	Error        chan error
-	Complete     chan bool
-	eventChan    chan Event
+	Complete     chan *Observable
 	finalizeOnce sync.Once
 	closed       bool
 	UID          string
-	takeFn       func() bool
-	observable   *Observable
 }
 
 // NewSubscription init
 func NewSubscription() *Subscription {
 	log.Println("Subscription.NewSubscription")
 	id := &Subscription{
-		eventChan:  make(chan Event, 10),
-		Next:       make(chan interface{}, 1),
-		Error:      make(chan error, 1),
-		Complete:   make(chan bool, 1),
-		closed:     false,
-		UID:        strconv.FormatInt(time.Now().UnixNano(), 10),
-		takeFn:     nil,
-		observable: nil,
+		eventChan: make(chan Event, 10),
+		Next:      make(chan interface{}, 1),
+		Error:     make(chan error, 1),
+		Complete:  make(chan *Observable, 1),
+		closed:    false,
+		UID:       strconv.FormatInt(time.Now().UnixNano(), 10),
 	}
 
 	// waiter to allow the goroutine to spin up
@@ -55,36 +51,22 @@ func NewSubscription() *Subscription {
 		}()
 		wg.Done()
 
-		hot := true
 		for {
 			dlog.Println(id.UID, "Subscription<-eventChan")
 			select {
 			case event := <-id.eventChan:
 				switch {
-				case event.value != nil:
+				case event.evNext != nil:
 					dlog.Println(id.UID, "Subscription<-Next")
-					if hot {
-						id.Next <- event.value
-					}
-
-					// Take
-					if id.takeFn != nil && !id.takeFn() {
-						hot = false
-						dlog.Println(id.UID, "Take complete")
-						if id.observable != nil {
-							id.observable.Unsubscribe <- id
-							id.observable.Yield()
-						}
-						id.complete()
-					}
+					id.Next <- event.evNext
 					break
-				case event.err != nil:
+				case event.evError != nil:
 					dlog.Println(id.UID, "Subscription<-Error")
-					id.Error <- event.err
+					id.Error <- event.evError
 					return
-				case event.complete == true:
+				case event.evComplete != nil:
 					dlog.Println(id.UID, "Subscription<-Complete")
-					id.Complete <- true
+					id.Complete <- event.evComplete
 					return
 				}
 			}
@@ -103,7 +85,7 @@ func (id *Subscription) next(event interface{}) *Subscription {
 		return nil
 	}
 
-	id.eventChan <- Event{value: event}
+	id.eventChan <- Event{evNext: event}
 
 	return id
 }
@@ -113,18 +95,18 @@ func (id *Subscription) error(err error) *Subscription {
 	log.Println(id.UID, "Subscription.error")
 
 	id.finalizeOnce.Do(func() {
-		id.eventChan <- Event{err: err}
+		id.eventChan <- Event{evError: err}
 	})
 
 	return id
 }
 
 // complete helper
-func (id *Subscription) complete() *Subscription {
+func (id *Subscription) complete(obs *Observable) *Subscription {
 	log.Println(id.UID, "Subscription.complete")
 
 	id.finalizeOnce.Do(func() {
-		id.eventChan <- Event{complete: true}
+		id.eventChan <- Event{evComplete: obs}
 	})
 
 	return id

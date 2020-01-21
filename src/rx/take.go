@@ -3,7 +3,7 @@ package rx
 import "sync"
 
 // Take export
-func (id *Subscription) Take(count int) *Subscription {
+func (id *Observable) Take(count int) *Observable {
 	log.Println(id.UID, "Observable.Take")
 
 	counter := count
@@ -17,7 +17,7 @@ func (id *Subscription) Take(count int) *Subscription {
 }
 
 // TakeWhile export
-func (id *Subscription) TakeWhile(cond func() bool) *Subscription {
+func (id *Observable) TakeWhile(cond func() bool) *Observable {
 	log.Println(id.UID, "Observable.TakeWhile")
 
 	id.takeFn = cond
@@ -26,7 +26,7 @@ func (id *Subscription) TakeWhile(cond func() bool) *Subscription {
 }
 
 // TakeUntil export
-func (id *Subscription) TakeUntil(observable *Observable) *Subscription {
+func (id *Observable) TakeUntil(observable *Observable) *Observable {
 	log.Println(id.UID, "Observable.TakeUntil")
 
 	watcher := NewSubscription()
@@ -35,7 +35,7 @@ func (id *Subscription) TakeUntil(observable *Observable) *Subscription {
 
 	go func() {
 		wg.Done()
-		defer id.complete()
+		defer func() { id.Complete <- id }()
 		select {
 		case <-watcher.Next:
 			return
@@ -53,7 +53,7 @@ func (id *Subscription) TakeUntil(observable *Observable) *Subscription {
 }
 
 // TakeUntilClose export
-func (id *Subscription) TakeUntilClose(close CloseCh) *Subscription {
+func (id *Observable) TakeUntilClose(close CloseCh) *Observable {
 	log.Println(id.UID, "Observable.TakeUntilCh")
 
 	var wg sync.WaitGroup
@@ -61,7 +61,7 @@ func (id *Subscription) TakeUntilClose(close CloseCh) *Subscription {
 
 	go func() {
 		wg.Done()
-		defer id.complete()
+		defer func() { id.Complete <- id }()
 		<-close
 	}()
 
