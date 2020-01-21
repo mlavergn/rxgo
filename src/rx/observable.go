@@ -21,18 +21,19 @@ type operator struct {
 // Observable type
 type Observable struct {
 	*Observer
+	pipes         map[*Observable]*Observable
+	pipesMutex    sync.RWMutex
 	observers     map[*Observer]*Observer
 	publish       bool
 	connect       chan bool
 	connecters    map[*Observer]*Observer
 	share         bool
 	multicast     bool
+	merge         bool
 	Subscribe     chan *Observer
 	Unsubscribe   chan *Observer
 	completeOnce  sync.Once
 	Finalize      chan bool
-	merges        map[*Observable]*Observable
-	mergesMutex   sync.RWMutex
 	buffer        *CircularBuffer
 	operators     []operator
 	repeatWhenFn  func() bool
@@ -47,16 +48,17 @@ func NewObservable() *Observable {
 	log.Println("Observable.NewObservable")
 	id := &Observable{
 		Observer:      NewObserver(),
+		pipes:         map[*Observable]*Observable{},
 		observers:     make(map[*Observer]*Observer, 1),
 		publish:       false,
 		connect:       make(chan bool, 1),
 		connecters:    map[*Observer]*Observer{},
 		share:         false,
 		multicast:     false,
+		merge:         false,
 		Subscribe:     make(chan *Observer, 1),
 		Unsubscribe:   make(chan *Observer, 1),
 		Finalize:      make(chan bool, 1),
-		merges:        map[*Observable]*Observable{},
 		buffer:        nil,
 		operators:     []operator{},
 		repeatWhenFn:  nil,
@@ -76,7 +78,7 @@ func NewObservable() *Observable {
 			id.Finalize <- true
 			id.Yield()
 			close(id.Finalize)
-			id.complete(id)
+			id.complete(id) // cleanup the Observer member
 			close(id.connect)
 			close(id.Subscribe)
 			close(id.Unsubscribe)
@@ -121,6 +123,54 @@ func NewObservable() *Observable {
 	wg.Wait()
 
 	return id
+}
+
+func (id *Observable) doComplete(err error) bool {
+	id.completeOnce.Do(func() {
+		for _, observer := range id.observers {
+			delete(id.observers, observer)
+			if err != nil {
+				select {
+				case observer.Error <- err:
+				default:
+				}
+			} else {
+				select {
+				case observer.Complete <- id:
+				default:
+				}
+			}
+		}
+
+		id.clearPipes()
+	})
+
+	return true
+}
+
+func (id *Observable) addPipe(pipe *Observable) {
+	id.pipesMutex.Lock()
+	id.pipes[pipe] = pipe
+	id.pipesMutex.Unlock()
+}
+
+func (id *Observable) delPipe(pipe *Observable) {
+	id.pipesMutex.Lock()
+	delete(id.pipes, pipe)
+	select {
+	case pipe.Unsubscribe <- id.Observer:
+	default:
+	}
+	id.pipesMutex.Unlock()
+}
+
+func (id *Observable) clearPipes() {
+	// remove and unsubscribe from all merged
+	if len(id.pipes) != 0 {
+		for pipe := range id.pipes {
+			id.delPipe(pipe)
+		}
+	}
 }
 
 // onNext handler
@@ -182,25 +232,7 @@ func (id *Observable) onError(err error) bool {
 		return true
 	}
 
-	id.completeOnce.Do(func() {
-		for _, observer := range id.observers {
-			delete(id.observers, observer)
-			observer.error(err)
-		}
-
-		// remove and unsubscribe from all merged
-		if len(id.merges) != 0 {
-			id.mergesMutex.Lock()
-			for merge := range id.merges {
-				delete(id.merges, merge)
-				select {
-				case merge.Unsubscribe <- id.Observer:
-				default:
-				}
-			}
-			id.mergesMutex.Unlock()
-		}
-	})
+	id.doComplete(err)
 
 	return false
 }
@@ -212,13 +244,13 @@ func (id *Observable) onComplete(obs *Observable) bool {
 	// if completion event came from this instance, don't interrupt it
 	if id != obs {
 		if obs != nil {
-			obs.Unsubscribe <- id.Observer
+			id.delPipe(obs)
 		}
 		if id.share {
 			fmt.Println(id.UID, "Observable<-Complete blocked by active share")
 			return true
 		}
-		if len(id.merges) != 0 && len(id.observers) != 0 {
+		if id.merge && len(id.pipes) != 0 && len(id.observers) != 0 {
 			fmt.Println(id.UID, "Observable<-Complete blocked by active merge")
 			return true
 		}
@@ -228,29 +260,7 @@ func (id *Observable) onComplete(obs *Observable) bool {
 		}
 	}
 
-	id.completeOnce.Do(func() {
-		for _, observer := range id.observers {
-			delete(id.observers, observer)
-			select {
-			case observer.Complete <- id:
-			default:
-			}
-		}
-
-		// remove and unsubscribe from all merged
-		if len(id.merges) != 0 {
-			id.mergesMutex.Lock()
-			for merge := range id.merges {
-				delete(id.merges, merge)
-				select {
-				case merge.Unsubscribe <- id.Observer:
-				default:
-				}
-			}
-			id.mergesMutex.Unlock()
-		}
-		return
-	})
+	id.doComplete(nil)
 
 	return false
 }
@@ -320,6 +330,7 @@ func (id *Observable) onResubscribe(err error) bool {
 	}
 	if id.resubscribeFn != nil {
 		dlog.Println(id.UID, "Observable.onResubscribe.resubscribeFn")
+		id.clearPipes()
 		closed := id.Observer
 		id.Observer = NewObserver()
 		closed.complete(id)
@@ -428,20 +439,5 @@ func (id *Observable) RepeatWhen(fn func() bool) *Observable {
 func (id *Observable) CatchError(fn func(error)) *Observable {
 	log.Println(id.UID, "Observable.CatchError")
 	id.catchErrorFn = fn
-	return id
-}
-
-//
-// Operators
-//
-
-// Merge operator
-func (id *Observable) Merge(merge *Observable) *Observable {
-	log.Println(id.UID, "Observable.Merge")
-	merge.Multicast()
-	id.mergesMutex.Lock()
-	id.merges[merge] = merge
-	id.mergesMutex.Unlock()
-	merge.Pipe(id)
 	return id
 }

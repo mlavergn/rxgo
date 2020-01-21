@@ -17,12 +17,12 @@ func demoInterval(observer *rx.Observer) *rx.Observable {
 func demoSubject(observer *rx.Observer) *rx.Observable {
 	interval := rx.NewInterval(200)
 	interval.UID = "demoSubjectInterval." + interval.UID
-	observable := rx.NewSubject()
-	observable.UID = "demoSubjectObservable." + observable.UID
-	interval.Pipe(observable)
-	observable.Subscribe <- observer
-	observable.Next <- 99
-	return observable.Take(10)
+	subject := rx.NewSubject()
+	subject.UID = "demoSubjectObservable." + subject.UID
+	interval.Pipe(subject)
+	subject.Subscribe <- observer
+	subject.Next <- 99
+	return subject.Take(10)
 }
 
 func demoBehavior(observer *rx.Observer) *rx.Observable {
@@ -30,51 +30,51 @@ func demoBehavior(observer *rx.Observer) *rx.Observable {
 }
 
 func demoReplay(observer *rx.Observer, count int) *rx.Observable {
-	observable := rx.NewReplaySubject(count)
-	observable.UID = "demoReplayObservable." + observable.UID
+	subject := rx.NewReplaySubject(count)
+	subject.UID = "demoReplayObservable." + subject.UID
 
-	observable.Next <- 11
-	observable.Next <- 22
-	observable.Next <- 33
-	observable.Next <- 44
-	observable.Next <- 55
-	observable.Next <- 66
-	observable.Next <- 77
-	observable.Next <- 88
-	observable.Next <- 99
-	return observable.Take(5)
+	subject.Next <- 11
+	subject.Next <- 22
+	subject.Next <- 33
+	subject.Next <- 44
+	subject.Next <- 55
+	subject.Next <- 66
+	subject.Next <- 77
+	subject.Next <- 88
+	subject.Next <- 99
+	return subject.Take(5)
 }
 
 func demoRetry(observer *rx.Observer) *rx.Observable {
 	rxhttp := rx.NewHTTPRequest(10 * time.Second)
-	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
+	subject, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
 	if err != nil {
 		fmt.Println("demoRetry", err)
 		return nil
 	}
-	observable.UID = "demoRetryObservable." + observable.UID
+	subject.UID = "demoRetryObservable." + subject.UID
 	retry := 2
-	observable.RepeatWhen(func() bool {
+	subject.RepeatWhen(func() bool {
 		retry--
 		<-time.After(1 * time.Second)
 		return (retry != 0)
 	}).Take(1)
-	return observable
+	return subject
 }
 
 func demoSSE(observer *rx.Observer) *rx.Observable {
 	rxhttp := rx.NewHTTPRequest(10 * time.Second)
-	observable, err := rxhttp.SSESubject("http://demo.howopensource.com/sse/stocks.php", nil)
+	subject, err := rxhttp.SSESubject("http://demo.howopensource.com/sse/stocks.php", nil)
 	if err != nil {
 		fmt.Println("demoSSE", err)
 		return nil
 	}
-	observable.UID = "demoSSE." + observable.UID
-	observable.Map(func(event interface{}) interface{} {
+	subject.UID = "demoSSE." + subject.UID
+	subject.Map(func(event interface{}) interface{} {
 		result := rx.ToStringMap(event, nil)
 		return result
 	}).Take(5)
-	return observable
+	return subject
 }
 
 func main() {
@@ -84,13 +84,13 @@ func main() {
 	observer.UID = "demoSubscription." + observer.UID
 
 	parse := true
-	// observable := demoInterval(observer)
-	// observable := demoSubject(observer)
-	// observable := demoBehavior(observer)
-	observable := demoReplay(observer, 4)
+	// subject := demoInterval(observer)
+	// subject := demoSubject(observer)
+	// subject := demoBehavior(observer)
+	subject := demoReplay(observer, 4)
 
-	// observable := demoRetry(observer)
-	// observable := demoSSE(observer)
+	// subject := demoRetry(observer)
+	// subject := demoSSE(observer)
 	// parse = false
 
 	var wg sync.WaitGroup
@@ -106,7 +106,7 @@ func main() {
 					v := rx.ToInt(event, -1)
 					if v == 99 || v == -1 {
 						fmt.Println("Done")
-						observable.Unsubscribe <- observer
+						subject.Unsubscribe <- observer
 					}
 				}
 			}
@@ -114,8 +114,8 @@ func main() {
 	}()
 
 	wg.Wait()
-	observable.Subscribe <- observer
+	subject.Subscribe <- observer
 
-	<-observable.Finalize
+	<-subject.Finalize
 	close(closeCh)
 }

@@ -5,10 +5,19 @@ import (
 	"time"
 )
 
-// Pipe forwards events to the observer
-func (id *Observable) Pipe(observer *Observable) *Observable {
+// Pipe pipes events to an observerable
+func (id *Observable) Pipe(observable *Observable) *Observable {
 	log.Println(id.UID, "Observable.Pipe")
-	id.Subscribe <- observer.Observer
+	observable.addPipe(id)
+	id.Subscribe <- observable.Observer
+	return id
+}
+
+// Merge operator adds observable to id's event output
+func (id *Observable) Merge(observable *Observable) *Observable {
+	log.Println(id.UID, "Observable.Merge")
+	id.merge = true
+	observable.Pipe(id)
 	return id
 }
 

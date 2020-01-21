@@ -7,7 +7,7 @@ import (
 
 func TestRequestText(t *testing.T) {
 	rxhttp := NewHTTPRequest(10 * time.Second)
-	observable, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
+	subject, err := rxhttp.TextSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -17,7 +17,7 @@ func TestRequestText(t *testing.T) {
 	completeCnt := 0
 
 	observer := NewObserver()
-	observable.Subscribe <- observer
+	subject.Subscribe <- observer
 loop:
 	for {
 
@@ -46,7 +46,7 @@ func TestRequestLine(t *testing.T) {
 	expect := 11
 	actual := 0
 	rxhttp := NewHTTPRequest(10 * time.Second)
-	observable, err := rxhttp.LineSubject("http://httpbin.org/get", nil)
+	subject, err := rxhttp.LineSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -57,7 +57,7 @@ func TestRequestLine(t *testing.T) {
 	lines := []string{}
 
 	observer := NewObserver()
-	observable.Subscribe <- observer
+	subject.Subscribe <- observer
 loop:
 	for {
 		select {
@@ -90,7 +90,7 @@ loop:
 }
 func TestRequestJSON(t *testing.T) {
 	rxhttp := NewHTTPRequest(10 * time.Second)
-	observable, err := rxhttp.JSONSubject("http://httpbin.org/get", nil)
+	subject, err := rxhttp.JSONSubject("http://httpbin.org/get", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -100,7 +100,7 @@ func TestRequestJSON(t *testing.T) {
 	completeCnt := 0
 
 	observer := NewObserver()
-	observable.Subscribe <- observer
+	subject.Subscribe <- observer
 loop:
 	for {
 		select {
@@ -126,7 +126,7 @@ loop:
 
 func TestRequestSSE(t *testing.T) {
 	rxhttp := NewHTTPRequest(10 * time.Second)
-	observable, err := rxhttp.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
+	subject, err := rxhttp.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
 
 	if err != nil {
 		t.Fatalf("Init error %v", err)
@@ -136,7 +136,7 @@ func TestRequestSSE(t *testing.T) {
 	completeCnt := 0
 
 	observer := NewObserver()
-	observable.Take(1).Subscribe <- observer
+	subject.Take(1).Subscribe <- observer
 loop:
 	for {
 		select {
