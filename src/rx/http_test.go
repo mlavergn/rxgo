@@ -1,6 +1,7 @@
 package rx
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -41,7 +42,7 @@ loop:
 }
 
 func TestRequestLine(t *testing.T) {
-	expect := 11
+	expect := 10
 	actual := 0
 	subject, err := NewHTTPLineSubject("http://httpbin.org/get", nil)
 
@@ -79,9 +80,14 @@ loop:
 		t.Fatalf("Expected complete count of %v but got %v", 1, completeCnt)
 	}
 
-	if actual != expect {
-		t.Fatalf("xExpected %v lines got %v", expect, actual)
-		t.Log(lines)
+	if actual < expect {
+		t.Fatalf("Expected at least %v lines got %v %v", expect, actual, lines)
+		return
+	}
+
+	lastLine := lines[len(lines)-1]
+	if !strings.HasPrefix(lastLine, "}") {
+		t.Fatalf("Expected closing brace got [%v]", lastLine)
 		return
 	}
 }
