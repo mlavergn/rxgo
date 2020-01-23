@@ -22,27 +22,28 @@ type operator struct {
 // Observable type
 type Observable struct {
 	*Observer
-	pipes         map[*Observable]*Observable
-	pipesMutex    sync.RWMutex
-	observers     map[*Observer]*Observer
-	publish       bool
-	connect       chan bool
-	connecters    map[*Observer]*Observer
-	share         bool
-	multicast     bool
-	merge         bool
-	Subscribe     chan *Observer
-	subscribeOps  []operator
-	Unsubscribe   chan *Observer
-	completeOnce  sync.Once
-	Finalize      chan bool
-	buffer        *CircularBuffer
-	nextOps       []operator
-	repeatWhenFn  func() bool
-	retryWhenFn   func() bool
-	catchErrorFn  func(error)
-	resubscribeFn func(*Observable) error
-	takeFn        func() bool
+	pipes          map[*Observable]*Observable
+	pipesMutex     sync.RWMutex
+	observers      map[*Observer]*Observer
+	observersMutex sync.RWMutex
+	publish        bool
+	connect        chan bool
+	connecters     map[*Observer]*Observer
+	share          bool
+	multicast      bool
+	merge          bool
+	Subscribe      chan *Observer
+	subscribeOps   []operator
+	Unsubscribe    chan *Observer
+	completeOnce   sync.Once
+	Finalize       chan bool
+	buffer         *CircularBuffer
+	nextOps        []operator
+	repeatWhenFn   func() bool
+	retryWhenFn    func() bool
+	catchErrorFn   func(error)
+	resubscribeFn  func(*Observable) error
+	takeFn         func() bool
 }
 
 // NewObservable init
@@ -130,6 +131,7 @@ func NewObservable() *Observable {
 
 func (id *Observable) doComplete(err error) bool {
 	id.completeOnce.Do(func() {
+		id.observersMutex.Lock()
 		for _, observer := range id.observers {
 			delete(id.observers, observer)
 			if err != nil {
@@ -144,6 +146,7 @@ func (id *Observable) doComplete(err error) bool {
 				}
 			}
 		}
+		id.observersMutex.Unlock()
 
 		id.clearPipes()
 	})
@@ -212,9 +215,11 @@ func (id *Observable) onNext(event interface{}) bool {
 	}
 
 	// multicast the event
+	id.observersMutex.RLock()
 	for _, observer := range id.observers {
 		observer.next(event)
 	}
+	id.observersMutex.RUnlock()
 
 	// Take
 	if id.takeFn != nil && !id.takeFn() {
@@ -284,6 +289,7 @@ func (id *Observable) onSubscribe(observer *Observer) bool {
 		return false
 	}
 
+	id.observersMutex.Lock()
 	if !id.multicast {
 		for _, observer := range id.observers {
 			delete(id.observers, observer)
@@ -291,6 +297,7 @@ func (id *Observable) onSubscribe(observer *Observer) bool {
 		}
 	}
 	id.observers[observer] = observer
+	id.observersMutex.Unlock()
 
 	// subscription operations
 	for _, op := range id.subscribeOps {
@@ -335,7 +342,9 @@ func (id *Observable) onSubscribe(observer *Observer) bool {
 // onUnsubscribe handler
 func (id *Observable) onUnsubscribe(observer *Observer) bool {
 	log.Println(id.UID, "Observable.onUnsubscribe")
+	id.observersMutex.Lock()
 	delete(id.observers, observer)
+	id.observersMutex.Unlock()
 	if len(id.observers) > 0 || id.share {
 		return true
 	}
