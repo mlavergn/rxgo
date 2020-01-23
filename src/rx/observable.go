@@ -11,6 +11,7 @@ const (
 	operatorMap operatorType = iota
 	operatorFilter
 	operatorTap
+	operatorStartWith
 )
 
 type operator struct {
@@ -31,11 +32,12 @@ type Observable struct {
 	multicast     bool
 	merge         bool
 	Subscribe     chan *Observer
+	subscribeOps  []operator
 	Unsubscribe   chan *Observer
 	completeOnce  sync.Once
 	Finalize      chan bool
 	buffer        *CircularBuffer
-	operators     []operator
+	nextOps       []operator
 	repeatWhenFn  func() bool
 	retryWhenFn   func() bool
 	catchErrorFn  func(error)
@@ -57,10 +59,11 @@ func NewObservable() *Observable {
 		multicast:     false,
 		merge:         false,
 		Subscribe:     make(chan *Observer, 1),
+		subscribeOps:  []operator{},
 		Unsubscribe:   make(chan *Observer, 1),
 		Finalize:      make(chan bool, 1),
 		buffer:        nil,
-		operators:     []operator{},
+		nextOps:       []operator{},
 		repeatWhenFn:  nil,
 		retryWhenFn:   nil,
 		catchErrorFn:  nil,
@@ -83,7 +86,7 @@ func NewObservable() *Observable {
 			close(id.Subscribe)
 			close(id.Unsubscribe)
 			id.observers = nil
-			id.operators = nil
+			id.nextOps = nil
 		}()
 		wg.Done()
 		for {
@@ -180,7 +183,7 @@ func (id *Observable) onNext(event interface{}) bool {
 	log.Println(id.UID, "Observable.onNext")
 
 	// Operations
-	for _, op := range id.operators {
+	for _, op := range id.nextOps {
 		switch op.op {
 		case operatorFilter:
 			filterFn := op.fn.(func(interface{}) bool)
@@ -288,6 +291,19 @@ func (id *Observable) onSubscribe(observer *Observer) bool {
 		}
 	}
 	id.observers[observer] = observer
+
+	// subscription operations
+	for _, op := range id.subscribeOps {
+		switch op.op {
+		case operatorStartWith:
+			fn := op.fn.(func() []interface{})
+			events := fn()
+			for _, event := range events {
+				observer.next(event)
+			}
+			break
+		}
+	}
 
 	// replay for the new sub
 	if id.buffer != nil {

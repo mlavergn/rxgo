@@ -25,21 +25,21 @@ func (id *Observable) Merge(observable *Observable) *Observable {
 // Emit values that PASS (return true) for the filter condition
 func (id *Observable) Filter(fn func(interface{}) bool) *Observable {
 	log.Println(id.UID, "Observable.Filter")
-	id.operators = append(id.operators, operator{operatorFilter, fn})
+	id.nextOps = append(id.nextOps, operator{operatorFilter, fn})
 	return id
 }
 
 // Map modifies the event type
 func (id *Observable) Map(fn func(interface{}) interface{}) *Observable {
 	log.Println(id.UID, "Observable.Map")
-	id.operators = append(id.operators, operator{operatorMap, fn})
+	id.nextOps = append(id.nextOps, operator{operatorMap, fn})
 	return id
 }
 
 // Tap adds a side effect to an event
 func (id *Observable) Tap(fn func(interface{})) *Observable {
 	log.Println(id.UID, "Observable.Tap")
-	id.operators = append(id.operators, operator{operatorTap, fn})
+	id.nextOps = append(id.nextOps, operator{operatorTap, fn})
 	return id
 }
 
@@ -64,5 +64,13 @@ func (id *Observable) Delay(delay time.Duration) *Observable {
 	id.Tap(func(event interface{}) {
 		<-time.After(delay)
 	})
+	return id
+}
+
+// StartWith operator
+// NOTE: Processes events on each subscription, including shared observables
+func (id *Observable) StartWith(fn func() []interface{}) *Observable {
+	log.Println(id.UID, "Observable.StartWith")
+	id.subscribeOps = append(id.subscribeOps, operator{operatorStartWith, fn})
 	return id
 }
