@@ -83,6 +83,7 @@ func (id *HTTPClient) subject(url string, mime string, data []byte, delimiter by
 	}
 
 	req.Header.Add("Accept", mime)
+	req.Header.Add("Connection", "close")
 
 	subject := NewSubject()
 	subject.UID = "httpSubject." + subject.UID
