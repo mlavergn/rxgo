@@ -24,7 +24,7 @@ var tlsConfigOnce sync.Once
 var tlsConfig *tls.Config
 
 var httpClient *http.Client
-var httpClientTimeout = -1 * time.Second
+var httpClientTimeout = 0 * time.Second
 
 // NewHTTPClient init
 func NewHTTPClient(timeout time.Duration) *HTTPClient {
@@ -49,10 +49,11 @@ func NewHTTPClient(timeout time.Duration) *HTTPClient {
 
 	// if timeout is unchanged, reuse http.Client
 	if timeout != httpClientTimeout {
+		httpClientTimeout = timeout
 		httpTransport := &http.Transport{
 			TLSClientConfig: tlsConfig,
 			DialContext: (&net.Dialer{
-				Timeout: timeout,
+				Timeout: httpClientTimeout,
 			}).DialContext,
 		}
 
@@ -102,6 +103,7 @@ func (id *HTTPClient) subject(url string, mime string, data []byte, delimiter by
 			subject.onError(err)
 			return
 		}
+		defer resp.Body.Close()
 
 		// log.Println(resp.Header)
 		contentLength := resp.ContentLength
@@ -110,7 +112,6 @@ func (id *HTTPClient) subject(url string, mime string, data []byte, delimiter by
 		}
 		dlog.Println(subject.UID, "HTTPRequest.httpSubject.ContentLength", contentLength)
 		reader := bufio.NewReader(resp.Body)
-		defer resp.Body.Close()
 
 		for {
 			if delimiter == 0 {
@@ -164,7 +165,7 @@ func (id *HTTPClient) subject(url string, mime string, data []byte, delimiter by
 func NewHTTPByteSubject(url string, contentType string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.ByteSubject")
 	subject := NewSubject()
-	client := NewHTTPClient(10 * time.Second)
+	client := NewHTTPClient(5 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.ByteSubject.Resubscribe")
@@ -185,7 +186,7 @@ func NewHTTPByteSubject(url string, contentType string, payload []byte) (*Observ
 func NewHTTPTextSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.TextSubject")
 	subject := NewSubject()
-	client := NewHTTPClient(10 * time.Second)
+	client := NewHTTPClient(5 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.TextSubject.Resubscribe")
@@ -212,7 +213,7 @@ func NewHTTPTextSubject(url string, payload []byte) (*Observable, error) {
 func NewHTTPLineSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.LineSubject")
 	subject := NewSubject()
-	client := NewHTTPClient(10 * time.Second)
+	client := NewHTTPClient(5 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.LineSubject.Resubscribe")
@@ -233,7 +234,7 @@ func NewHTTPLineSubject(url string, payload []byte) (*Observable, error) {
 func NewHTTPJSONSubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.JSONSubject")
 	subject := NewSubject()
-	client := NewHTTPClient(10 * time.Second)
+	client := NewHTTPClient(5 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.JSONSubject.Resubscribe")
@@ -267,7 +268,7 @@ func NewHTTPJSONSubject(url string, payload []byte) (*Observable, error) {
 func NewHTTPSSESubject(url string, payload []byte) (*Observable, error) {
 	log.Println("HTTPRequest.SSESubject")
 	subject := NewSubject()
-	client := NewHTTPClient(10 * time.Second)
+	client := NewHTTPClient(5 * time.Second)
 
 	subject.Resubscribe(func(observer *Observable) error {
 		log.Println(observer.UID, "HTTPRequest.SSESubject.Resubscribe")
