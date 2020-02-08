@@ -27,7 +27,7 @@ package main
 import "github.com/mlavergn/rxgo/src/rx"
 
 func main() {
-    subject := rx.NewInterval(100)
+    observable := rx.NewInterval(100).Take(10)
     observer := rx.NewObserver()
     go func() {
         for {
@@ -43,12 +43,12 @@ func main() {
             }
         }
     }()
-    subject.Take(10).Subscribe <- observer
-    <-subject.Finalize
+    observable.Subscribe <- observer
+    <-observable.Finalize
 }
 ```
 
-[Playground](https://play.golang.org/p/QNZPDoQAq1j)
+[Playground](https://play.golang.org/p/YnAgwDGKQry)
 
 ## Background
 
