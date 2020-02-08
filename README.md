@@ -1,5 +1,6 @@
 [![Build Status](https://github.com/mlavergn/rxgo/workflows/CI/badge.svg?branch=master)](https://github.com/mlavergn/rxgo/actions)
 [![Go Report](https://goreportcard.com/badge/github.com/mlavergn/rxgo)](https://goreportcard.com/report/github.com/mlavergn/rxgo)
+[![GoDoc](https://godoc.org/github.com/mlavergn/rxgo/src/rx?status.svg)](https://godoc.org/github.com/mlavergn/rxgo/src/rx)
 
 # RxGo
 
