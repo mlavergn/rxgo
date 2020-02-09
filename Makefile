@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.37.1
+VERSION := 0.37.2
 
 ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rx/rx.go
@@ -16,7 +16,7 @@ ver:
 lint:
 	$(shell go env GOPATH)/bin/golint ./src/...
 
-fmt:
+format:
 	go fmt ./src/...
 
 vet:

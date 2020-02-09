@@ -17,7 +17,7 @@ import (
 
 // HTTPClient type
 type HTTPClient struct {
-	client *http.Client
+	Client *http.Client
 }
 
 var tlsConfigOnce sync.Once
@@ -63,7 +63,7 @@ func NewHTTPClient(timeout time.Duration) *HTTPClient {
 	}
 
 	return &HTTPClient{
-		client: httpClient,
+		Client: httpClient,
 	}
 }
 
@@ -98,7 +98,7 @@ func (id *HTTPClient) subject(url string, mime string, data []byte, delimiter by
 		<-subject.connect
 
 		// perform the request
-		resp, err := id.client.Do(req)
+		resp, err := id.Client.Do(req)
 		if err != nil {
 			subject.onError(err)
 			return

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -48,7 +48,7 @@ func demoReplay(observer *rx.Observer, count int) *rx.Observable {
 func demoRetry(observer *rx.Observer) *rx.Observable {
 	subject, err := rx.NewHTTPTextSubject("http://httpbin.org/get", nil)
 	if err != nil {
-		fmt.Println("demoRetry", err)
+		log.Println("demoRetry", err)
 		return nil
 	}
 	subject.UID = "demoRetryObservable." + subject.UID
@@ -64,7 +64,7 @@ func demoRetry(observer *rx.Observer) *rx.Observable {
 func demoSSE(observer *rx.Observer) *rx.Observable {
 	subject, err := rx.NewHTTPSSESubject("http://demo.howopensource.com/sse/stocks.php", nil)
 	if err != nil {
-		fmt.Println("demoSSE", err)
+		log.Println("demoSSE", err)
 		return nil
 	}
 	subject.UID = "demoSSE." + subject.UID
@@ -99,11 +99,11 @@ func main() {
 		for {
 			select {
 			case event := <-observer.Next:
-				fmt.Println(observer.UID, event)
+				log.Println(observer.UID, event)
 				if parse {
 					v := rx.ToInt(event, -1)
 					if v == 99 || v == -1 {
-						fmt.Println("Done")
+						log.Println("Done")
 						subject.Unsubscribe <- observer
 					}
 				}
