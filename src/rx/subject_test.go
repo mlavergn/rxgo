@@ -13,35 +13,38 @@ func TestReplay(t *testing.T) {
 
 	observer := NewObserver()
 	subject := NewReplaySubject(events)
-	subject.Next <- 1
-	subject.Next <- 2
-	subject.Next <- 3
-	subject.Next <- 4
-	subject.Next <- 5
-	subject.Next <- 6
+	subject.Event <- Event{Type: EventTypeNext, Next: 1}
+	subject.Event <- Event{Type: EventTypeNext, Next: 2}
+	subject.Event <- Event{Type: EventTypeNext, Next: 3}
+	subject.Event <- Event{Type: EventTypeNext, Next: 4}
+	subject.Event <- Event{Type: EventTypeNext, Next: 5}
+	subject.Event <- Event{Type: EventTypeNext, Next: 6}
 	subject.Subscribe <- observer
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
-			// t.Log("next", next.(int))
-			if next == nil {
-				t.Fatalf("Unexpected next nil value")
-				return
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				// t.Log("next", event.Next.(int))
+				if event.Next == nil {
+					t.Fatalf("Unexpected next nil value")
+					return
+				}
+				nextCnt++
+				if nextCnt == events {
+					observer.Event <- Event{Type: EventTypeComplete, Complete: subject}
+				}
+				break
+			case EventTypeError:
+				// t.Log("error", errorCnt)
+				errorCnt++
+				break loop
+			case EventTypeComplete:
+				// t.Log("complete", completeCnt)
+				completeCnt++
+				break loop
 			}
-			nextCnt++
-			if nextCnt == events {
-				observer.Complete <- subject
-			}
-			break
-		case <-observer.Error:
-			// t.Log("error", errorCnt)
-			errorCnt++
-			break loop
-		case <-observer.Complete:
-			// t.Log("complete", completeCnt)
-			completeCnt++
-			break loop
 		}
 	}
 

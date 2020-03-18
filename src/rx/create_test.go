@@ -17,22 +17,27 @@ func TestInterval(t *testing.T) {
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
-			// t.Log("next", next.(int))
-			if next == nil {
-				t.Fatalf("Unexpected next nil value")
-				return
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				// t.Log("next", next.(int))
+				if event.Next == nil {
+					t.Fatalf("Unexpected next nil value")
+					return
+				}
+				nextCnt++
+				break
+			case EventTypeError:
+				// t.Log("error", errorCnt)
+				errorCnt++
+				break loop
+			case EventTypeComplete:
+				// t.Log("complete", completeCnt)
+				completeCnt++
+				break loop
+			default:
+				break
 			}
-			nextCnt++
-			break
-		case <-observer.Error:
-			// t.Log("error", errorCnt)
-			errorCnt++
-			break loop
-		case <-observer.Complete:
-			// t.Log("complete", completeCnt)
-			completeCnt++
-			break loop
 		}
 	}
 

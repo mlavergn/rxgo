@@ -11,12 +11,15 @@ func RxIntervalBench(events int) {
 loop:
 	for {
 		select {
-		case <-observer.Next:
-			break
-		case <-observer.Error:
-			break loop
-		case <-observer.Complete:
-			break loop
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				break
+			case EventTypeError:
+				break loop
+			case EventTypeComplete:
+				break loop
+			}
 		}
 	}
 

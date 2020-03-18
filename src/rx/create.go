@@ -54,10 +54,10 @@ func NewFrom(values []interface{}) *Observable {
 		<-id.connect
 
 		for _, val := range values {
-			id.Next <- val
+			id.Event <- Event{Type: EventTypeNext, Next: val}
 		}
 		id.Yield()
-		id.Complete <- id
+		id.Event <- Event{Type: EventTypeComplete, Complete: id}
 	}()
 
 	wg.Wait()
@@ -78,10 +78,10 @@ func NewFromMap(value interface{}) *Observable {
 		<-id.connect
 
 		for key, val := range value.(map[string]interface{}) {
-			id.Next <- map[string]interface{}{key: val}
+			id.Event <- Event{Type: EventTypeNext, Next: map[string]interface{}{key: val}}
 		}
 		id.Yield()
-		id.Complete <- id
+		id.Event <- Event{Type: EventTypeComplete, Complete: id}
 	}()
 
 	wg.Wait()

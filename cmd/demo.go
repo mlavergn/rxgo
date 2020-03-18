@@ -21,7 +21,7 @@ func demoSubject(observer *rx.Observer) *rx.Observable {
 	subject.UID = "demoSubjectObservable." + subject.UID
 	interval.Pipe(subject)
 	subject.Subscribe <- observer
-	subject.Next <- 99
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 99}
 	return subject.Take(10)
 }
 
@@ -33,15 +33,15 @@ func demoReplay(observer *rx.Observer, count int) *rx.Observable {
 	subject := rx.NewReplaySubject(count)
 	subject.UID = "demoReplayObservable." + subject.UID
 
-	subject.Next <- 11
-	subject.Next <- 22
-	subject.Next <- 33
-	subject.Next <- 44
-	subject.Next <- 55
-	subject.Next <- 66
-	subject.Next <- 77
-	subject.Next <- 88
-	subject.Next <- 99
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 11}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 22}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 33}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 44}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 55}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 66}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 77}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 88}
+	subject.Event <- rx.Event{Type: rx.EventTypeNext, Next: 99}
 	return subject.Take(5)
 }
 
@@ -98,13 +98,16 @@ func main() {
 		wg.Done()
 		for {
 			select {
-			case event := <-observer.Next:
-				log.Println(observer.UID, event)
-				if parse {
-					v := rx.ToInt(event, -1)
-					if v == 99 || v == -1 {
-						log.Println("Done")
-						subject.Unsubscribe <- observer
+			case event := <-observer.Event:
+				switch event.Type {
+				case rx.EventTypeNext:
+					log.Println(observer.UID, event.Next)
+					if parse {
+						v := rx.ToInt(event.Next, -1)
+						if v == 99 || v == -1 {
+							log.Println("Done")
+							subject.Unsubscribe <- observer
+						}
 					}
 				}
 			}

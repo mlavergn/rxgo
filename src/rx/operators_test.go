@@ -20,22 +20,25 @@ func TestFilter(t *testing.T) {
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
-			if next == nil {
-				t.Fatalf("Unexpected next nil value")
-				return
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				if event.Next == nil {
+					t.Fatalf("Unexpected next nil value")
+					return
+				}
+				// t.Log("next", next.(int))
+				nextCnt++
+				break
+			case EventTypeError:
+				// t.Log("error", errorCnt)
+				errorCnt++
+				break loop
+			case EventTypeComplete:
+				// t.Log("complete", completeCnt)
+				completeCnt++
+				break loop
 			}
-			// t.Log("next", next.(int))
-			nextCnt++
-			break
-		case <-observer.Error:
-			// t.Log("error", errorCnt)
-			errorCnt++
-			break loop
-		case <-observer.Complete:
-			// t.Log("complete", completeCnt)
-			completeCnt++
-			break loop
 		}
 	}
 
@@ -66,23 +69,27 @@ func TestMap(t *testing.T) {
 loop:
 	for {
 		select {
-		case next := <-observer.Next:
-			value := ToInt(next, 0)
-			if next == nil || value%10 != 0 {
-				t.Fatalf("Unexpected next value %v", next)
-				return
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				next := event.Next
+				value := ToInt(next, 0)
+				if next == nil || value%10 != 0 {
+					t.Fatalf("Unexpected next value %v", next)
+					return
+				}
+				// t.Log("next", next.(int))
+				nextCnt++
+				break
+			case EventTypeError:
+				// t.Log("error", errorCnt)
+				errorCnt++
+				break loop
+			case EventTypeComplete:
+				// t.Log("complete", completeCnt)
+				completeCnt++
+				break loop
 			}
-			// t.Log("next", next.(int))
-			nextCnt++
-			break
-		case <-observer.Error:
-			// t.Log("error", errorCnt)
-			errorCnt++
-			break loop
-		case <-observer.Complete:
-			// t.Log("complete", completeCnt)
-			completeCnt++
-			break loop
 		}
 	}
 

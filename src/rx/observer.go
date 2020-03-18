@@ -6,19 +6,27 @@ import (
 	"time"
 )
 
+// EventType export
+type EventType int
+
+// Event types
+const (
+	EventTypeNext EventType = iota
+	EventTypeError
+	EventTypeComplete
+)
+
 // Event type
 type Event struct {
-	evNext     interface{}
-	evError    error
-	evComplete *Observable
+	Type     EventType
+	Next     interface{}
+	Error    error
+	Complete *Observable
 }
 
 // Observer type
 type Observer struct {
-	eventChan    chan Event
-	Next         chan interface{}
-	Error        chan error
-	Complete     chan *Observable
+	Event        chan Event
 	finalizeOnce sync.Once
 	closed       bool
 	UID          string
@@ -28,52 +36,10 @@ type Observer struct {
 func NewObserver() *Observer {
 	log.Println("Observer.NewObserver")
 	id := &Observer{
-		eventChan: make(chan Event, 10),
-		Next:      make(chan interface{}, 1),
-		Error:     make(chan error, 1),
-		Complete:  make(chan *Observable, 1),
-		closed:    false,
-		UID:       strconv.FormatInt(time.Now().UnixNano(), 10),
+		Event:  make(chan Event, 1),
+		closed: false,
+		UID:    strconv.FormatInt(time.Now().UnixNano(), 10),
 	}
-
-	// waiter to allow the goroutine to spin up
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer func() {
-			id.closed = true
-			log.Println(id.UID, "Observer.finalize")
-			close(id.eventChan)
-			close(id.Next)
-			close(id.Error)
-			close(id.Complete)
-		}()
-		wg.Done()
-
-		for {
-			dlog.Println(id.UID, "Observer<-eventChan")
-			select {
-			case event := <-id.eventChan:
-				switch {
-				case event.evNext != nil:
-					dlog.Println(id.UID, "Observer<-Next")
-					id.Next <- event.evNext
-					break
-				case event.evError != nil:
-					dlog.Println(id.UID, "Observer<-Error")
-					id.Error <- event.evError
-					return
-				case event.evComplete != nil:
-					dlog.Println(id.UID, "Observer<-Complete")
-					id.Complete <- event.evComplete
-					return
-				}
-			}
-		}
-	}()
-
-	wg.Wait()
 
 	return id
 }
@@ -81,11 +47,10 @@ func NewObserver() *Observer {
 // next helper
 func (id *Observer) next(event interface{}) *Observer {
 	log.Println(id.UID, "Observer.next")
-	if id.closed {
-		return nil
-	}
 
-	id.eventChan <- Event{evNext: event}
+	if !id.closed && event != nil {
+		id.Event <- Event{Type: EventTypeNext, Next: event}
+	}
 
 	return id
 }
@@ -95,7 +60,9 @@ func (id *Observer) error(err error) *Observer {
 	log.Println(id.UID, "Observer.error")
 
 	id.finalizeOnce.Do(func() {
-		id.eventChan <- Event{evError: err}
+		id.closed = true
+		id.Event <- Event{Type: EventTypeError, Error: err}
+		close(id.Event)
 	})
 
 	return id
@@ -106,7 +73,9 @@ func (id *Observer) complete(obs *Observable) *Observer {
 	log.Println(id.UID, "Observer.complete")
 
 	id.finalizeOnce.Do(func() {
-		id.eventChan <- Event{evComplete: obs}
+		id.closed = true
+		id.Event <- Event{Type: EventTypeComplete, Complete: obs}
+		close(id.Event)
 	})
 
 	return id

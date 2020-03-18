@@ -21,18 +21,20 @@ loop:
 	for {
 
 		select {
-		case event := <-observer.Next:
-			data := ToString(event, "")
-			if len(data) < 1 {
-				t.Fatalf("Next invalid length for %v", data)
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				data := ToString(event.Next, "")
+				if len(data) < 1 {
+					t.Fatalf("Next invalid length for %v", data)
+				}
+			case EventTypeError:
+				t.Fatalf("Error %v", event.Error)
+				return
+			case EventTypeComplete:
+				completeCnt++
+				break loop
 			}
-			break
-		case err := <-observer.Error:
-			t.Fatalf("Error %v", err)
-			return
-		case <-observer.Complete:
-			completeCnt++
-			break loop
 		}
 	}
 
@@ -59,20 +61,24 @@ func TestRequestLine(t *testing.T) {
 loop:
 	for {
 		select {
-		case event := <-observer.Next:
-			actual++
-			data := event.([]byte)
-			if len(data) < 1 {
-				t.Fatalf("Next invalid length for data %v", data)
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				actual++
+				data := event.Next.([]byte)
+				if len(data) < 1 {
+					t.Fatalf("Next invalid length for data %v", data)
+				}
+				lines = append(lines, string(data))
+				break
+			case EventTypeError:
+				t.Fatalf("Error %v", event.Error)
+				break loop
+			case EventTypeComplete:
+				completeCnt++
+				break loop
+
 			}
-			lines = append(lines, string(data))
-			break
-		case err := <-observer.Error:
-			t.Fatalf("Error %v", err)
-			break loop
-		case <-observer.Complete:
-			completeCnt++
-			break loop
 		}
 	}
 
@@ -106,18 +112,21 @@ func TestRequestJSON(t *testing.T) {
 loop:
 	for {
 		select {
-		case event := <-observer.Next:
-			data := ToStringMap(event, nil)
-			if len(data) < 1 {
-				t.Fatalf("Next invalid length for %v", data)
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				data := ToStringMap(event.Next, nil)
+				if len(data) < 1 {
+					t.Fatalf("Next invalid length for %v", data)
+				}
+				break
+			case EventTypeError:
+				t.Fatalf("Error %v", event.Error)
+				return
+			case EventTypeComplete:
+				completeCnt++
+				break loop
 			}
-			break
-		case err := <-observer.Error:
-			t.Fatalf("Error %v", err)
-			return
-		case <-observer.Complete:
-			completeCnt++
-			break loop
 		}
 	}
 
@@ -141,19 +150,22 @@ func TestRequestSSE(t *testing.T) {
 loop:
 	for {
 		select {
-		case event := <-observer.Next:
-			data := ToStringMap(event, nil)
-			if len(data) < 3 {
-				t.Fatalf("Expected min 3 lines, but received %v", len(data))
+		case event := <-observer.Event:
+			switch event.Type {
+			case EventTypeNext:
+				data := ToStringMap(event.Next, nil)
+				if len(data) < 3 {
+					t.Fatalf("Expected min 3 lines, but received %v", len(data))
+					return
+				}
+				break
+			case EventTypeError:
+				t.Fatalf("Error %v", event.Error)
 				return
+			case EventTypeComplete:
+				completeCnt++
+				break loop
 			}
-			break
-		case err := <-observer.Error:
-			t.Fatalf("Error %v", err)
-			return
-		case <-observer.Complete:
-			completeCnt++
-			break loop
 		}
 	}
 

@@ -22,6 +22,9 @@ format:
 vet:
 	go vet ./src/...
 
+sec:
+	$(shell go env GOPATH)/bin/gosec ./src/...
+
 # PROFILE = -blockprofile
 # PROFILE = -cpuprofile
 PROFILE = -memprofile

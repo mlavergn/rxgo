@@ -92,24 +92,28 @@ func NewObservable() *Observable {
 		wg.Done()
 		for {
 			select {
-			case event := <-id.Next:
-				dlog.Println(id.UID, "Observable<-Next")
-				if id.onNext(event) {
-					break
+			case event := <-id.Event:
+				switch event.Type {
+				case EventTypeNext:
+					dlog.Println(id.UID, "Observable<-Next")
+					if id.onNext(event.Next) {
+						break
+					}
+					return
+				case EventTypeError:
+					dlog.Println(id.UID, "Observable<-Error", event.Error)
+					if id.onError(event.Error) {
+						break
+					}
+					return
+				case EventTypeComplete:
+					dlog.Println(id.UID, "Observable<-Complete")
+					if id.onComplete(event.Complete) {
+						break
+					}
+					return
 				}
-				return
-			case err := <-id.Error:
-				dlog.Println(id.UID, "Observable<-Error", err)
-				if id.onError(err) {
-					break
-				}
-				return
-			case observable := <-id.Complete:
-				dlog.Println(id.UID, "Observable<-Complete")
-				if id.onComplete(observable) {
-					break
-				}
-				return
+				break
 			case observer := <-id.Subscribe:
 				dlog.Println(id.UID, "Observable<-Subscribe")
 				id.onSubscribe(observer)
@@ -136,12 +140,12 @@ func (id *Observable) doComplete(err error) bool {
 			delete(id.observers, observer)
 			if err != nil {
 				select {
-				case observer.Error <- err:
+				case observer.Event <- Event{Type: EventTypeError, Error: err}:
 				default:
 				}
 			} else {
 				select {
-				case observer.Complete <- id:
+				case observer.Event <- Event{Type: EventTypeComplete, Complete: id}:
 				default:
 				}
 			}
@@ -293,7 +297,7 @@ func (id *Observable) onSubscribe(observer *Observer) bool {
 	if !id.multicast {
 		for _, observer := range id.observers {
 			delete(id.observers, observer)
-			observer.Complete <- id
+			observer.Event <- Event{Type: EventTypeComplete, Complete: id}
 		}
 	}
 	id.observers[observer] = observer
@@ -439,7 +443,7 @@ func (id *Observable) setBehavior(value interface{}) *Observable {
 
 // setReplay modifier
 func (id *Observable) setReplay(bufferSize int) *Observable {
-	log.Println(id.UID, "Observable.Replay")
+	log.Println(id.UID, "Observable.Replay", bufferSize)
 	id.buffer = NewCircularBuffer(bufferSize)
 	return id
 }

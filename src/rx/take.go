@@ -35,15 +35,8 @@ func (id *Observable) TakeUntil(observable *Observable) *Observable {
 
 	go func() {
 		wg.Done()
-		defer func() { id.Complete <- id }()
-		select {
-		case <-watcher.Next:
-			return
-		case <-watcher.Error:
-			return
-		case <-watcher.Complete:
-			return
-		}
+		defer func() { id.Event <- Event{Type: EventTypeComplete, Complete: id} }()
+		<-watcher.Event
 	}()
 
 	wg.Wait()
@@ -61,7 +54,7 @@ func (id *Observable) TakeUntilClose(close CloseCh) *Observable {
 
 	go func() {
 		wg.Done()
-		defer func() { id.Complete <- id }()
+		defer func() { id.Event <- Event{Type: EventTypeComplete, Complete: id} }()
 		<-close
 	}()
 

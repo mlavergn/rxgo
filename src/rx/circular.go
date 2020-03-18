@@ -1,8 +1,7 @@
 package rx
 
-// This is not thread safe *but* used in a single goroutine
-// and avoiding async access so it shouldn't need to worry
-// about concurrency
+// Not thread safe *but* is used in a single goroutine
+// which avoids async writes so should be ok
 
 // CircularBuffer type
 type CircularBuffer struct {
