@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mlavergn/rxgo/src/rx"
+	rx "github.com/mlavergn/rxgo"
 )
 
 func demoInterval(observer *rx.Observer) *rx.Observable {

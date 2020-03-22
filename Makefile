@@ -11,26 +11,26 @@
 VERSION := 0.37.2
 
 ver:
-	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/rx/rx.go
+	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' rx.go
 
 lint:
-	$(shell go env GOPATH)/bin/golint ./src/...
+	$(shell go env GOPATH)/bin/golint .
 
 format:
-	go fmt ./src/...
+	go fmt .
 
 vet:
-	go vet ./src/...
+	go vet .
 
 sec:
-	$(shell go env GOPATH)/bin/gosec ./src/...
+	$(shell go env GOPATH)/bin/gosec .
 
 # PROFILE = -blockprofile
 # PROFILE = -cpuprofile
 PROFILE = -memprofile
 profile:
 	-rm -f rx.prof rx.test
-	-go test ${PROFILE}=rx.prof ./src/...
+	-go test ${PROFILE}=rx.prof .
 	go tool pprof rx.prof
 
 ppcpu:
@@ -40,7 +40,7 @@ ppmem:
 	go tool pprof http://localhost/debug/pprof/heap
 
 build:
-	go build -v ./src/...
+	go build -v .
 
 clean:
 	go clean ...
@@ -49,23 +49,26 @@ demo: build
 	go run cmd/demo.go
 
 race:
-	go build -race ./src/...
+	go build -race .
 
 test: build
-	go test -v -count=${COUNT} ./src/...
+	go test -v -count=${COUNT} .
 
 TEST ?= TestMerge
 COUNT ?= 1
 testx: build
-	go test -v -count=${COUNT} ./src/... -run ${TEST}
+	go test -v -count=${COUNT} . -run ${TEST}
 
 bench: build
-	go test -bench=. -v ./src/...
+	go test -bench=. -v .
 
 github:
 	open "https://github.com/mlavergn/rxgo"
 
 release:
-	zip -r rxgo.zip LICENSE README.md Makefile cmd src
+	zip -r rxgo.zip LICENSE README.md Makefile cmd *.go go.mod
 	hub release create -m "${VERSION} - RxGo" -a rxgo.zip -t master "v${VERSION}"
 	open "https://github.com/mlavergn/rxgo/releases"
+
+st:
+	open -a SourceTree .
