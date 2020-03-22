@@ -32,14 +32,16 @@ func main() {
     go func() {
         for {
             select {
-            case event := <-observer.Next:
-                println(event.(int))
-                break
-            case err := <-observer.Error:
-                println(err)
-                return
-            case <-observer.Complete:
-                return
+            case event := <-observer.Event:
+                switch event.Type {
+                case EventTypeNext:
+                    println(event.Next(int))
+                    break
+                case EventTypeError:
+                    println(event.Error)
+                    return
+                case EventTypeComplete:
+                    return
             }
         }
     }()
